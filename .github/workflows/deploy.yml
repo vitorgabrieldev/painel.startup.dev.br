@@ -45,8 +45,6 @@ jobs:
             && php artisan storage:link || true \
             && php artisan config:clear \
             && php artisan route:clear \
-            && php artisan cache:clear --store=file \
-            && if [ -d resources/views ]; then php artisan view:clear; fi \
             && php artisan config:cache \
             && php artisan route:cache \
             && if [ -d resources/views ]; then php artisan view:cache; fi"
