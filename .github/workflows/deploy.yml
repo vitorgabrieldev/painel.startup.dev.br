@@ -46,5 +46,4 @@ jobs:
             && php artisan config:clear \
             && php artisan route:clear \
             && php artisan config:cache \
-            && php artisan route:cache \
-            && if [ -d resources/views ]; then php artisan view:cache; fi"
+            && php artisan route:cache"
