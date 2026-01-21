@@ -38,13 +38,15 @@ jobs:
             "$SSH_PROD_USER@$SSH_PROD_HOST" \
             "cd $SSH_PROD_FOLDER \
             && composer install --no-dev --optimize-autoloader \
-            && if [ -f yarn.lock ]; then yarn install --frozen-lockfile && yarn build; \
+            && if command -v yarn >/dev/null 2>&1 && [ -f yarn.lock ]; then yarn install --frozen-lockfile && yarn build; \
                elif [ -f package-lock.json ]; then npm ci && npm run build; \
                else npm install && npm run build; fi \
             && php artisan migrate --force \
             && php artisan storage:link || true \
-            && php artisan optimize:clear \
+            && php artisan config:clear \
+            && php artisan route:clear \
+            && php artisan view:clear \
+            && php artisan cache:clear --store=file \
             && php artisan config:cache \
             && php artisan route:cache \
             && php artisan view:cache"
-
