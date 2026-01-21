@@ -16,6 +16,8 @@ class ProjectDataController extends Controller
 {
     public function updateProject(Project $project, Request $request)
     {
+        $this->assertProjectAccess($project);
+
         $data = $request->validate([
             'overview' => ['nullable', 'string'],
             'purpose' => ['nullable', 'string'],
@@ -30,6 +32,8 @@ class ProjectDataController extends Controller
 
     public function addTechStack(Project $project, Request $request)
     {
+        $this->assertProjectAccess($project);
+
         $data = $request->validate([
             'category' => ['required', 'string', 'max:120'],
             'name' => ['required', 'string', 'max:180'],
@@ -44,6 +48,8 @@ class ProjectDataController extends Controller
 
     public function addPattern(Project $project, Request $request)
     {
+        $this->assertProjectAccess($project);
+
         $data = $request->validate([
             'name' => ['required', 'string', 'max:180'],
             'rationale' => ['nullable', 'string'],
@@ -56,6 +62,8 @@ class ProjectDataController extends Controller
 
     public function addRisk(Project $project, Request $request)
     {
+        $this->assertProjectAccess($project);
+
         $data = $request->validate([
             'title' => ['required', 'string', 'max:180'],
             'severity' => ['required', 'string', 'in:low,medium,high,critical'],
@@ -70,6 +78,8 @@ class ProjectDataController extends Controller
 
     public function addIntegration(Project $project, Request $request)
     {
+        $this->assertProjectAccess($project);
+
         $data = $request->validate([
             'type' => ['required', 'string', 'max:80'],
             'label' => ['required', 'string', 'max:180'],
@@ -82,6 +92,8 @@ class ProjectDataController extends Controller
 
     public function addGovernance(Project $project, Request $request)
     {
+        $this->assertProjectAccess($project);
+
         $data = $request->validate([
             'name' => ['required', 'string', 'max:180'],
             'scope' => ['required', 'string', 'in:decision,process,access'],
@@ -95,6 +107,8 @@ class ProjectDataController extends Controller
 
     public function addNfr(Project $project, Request $request)
     {
+        $this->assertProjectAccess($project);
+
         $data = $request->validate([
             'category' => ['required', 'string', 'max:120'],
             'metric' => ['nullable', 'string', 'max:120'],
@@ -109,6 +123,8 @@ class ProjectDataController extends Controller
 
     public function addDecision(Project $project, Request $request)
     {
+        $this->assertProjectAccess($project);
+
         $data = $request->validate([
             'title' => ['required', 'string', 'max:180'],
             'status' => ['required', 'string', 'in:proposed,accepted,superseded,rejected'],
@@ -131,5 +147,13 @@ class ProjectDataController extends Controller
             'integrationLinks',
             'governanceRules',
         ]);
+    }
+
+    private function assertProjectAccess(Project $project): void
+    {
+        abort_unless(
+            $project->members()->where('user_id', auth()->id())->exists(),
+            404,
+        );
     }
 }

@@ -5,10 +5,11 @@ import { createInertiaApp } from '@inertiajs/react';
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import { createRoot } from 'react-dom/client';
 
-const appName = import.meta.env.VITE_APP_NAME || 'Decision Hub';
+const appName = import.meta.env.VITE_APP_NAME || 'Safio Studio';
 
 createInertiaApp({
-    title: (title) => `${title} - ${appName}`,
+    title: (title) =>
+        title && title !== appName ? `${title} - ${appName}` : appName,
     resolve: (name) =>
         resolvePageComponent(
             `./Pages/${name}.jsx`,

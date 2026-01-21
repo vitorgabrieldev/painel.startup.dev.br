@@ -7,11 +7,26 @@ use Illuminate\Support\Facades\Http;
 
 class MistralClient
 {
+    private function currentModel(): string
+    {
+        return config('services.mistral.model', 'mistral-medium-latest');
+    }
+
+    private function buildMeta(array $result, int $attempt): array
+    {
+        return [
+            'provider' => 'mistral',
+            'model' => $this->currentModel(),
+            'attempt' => $attempt,
+            'response' => $result,
+        ];
+    }
+
     public function advise(array $messages): array
     {
         $apiKey = config('services.mistral.api_key');
         $baseUrl = rtrim(config('services.mistral.base_url'), '/');
-        $model = config('services.mistral.model', 'mistral-medium-latest');
+        $model = $this->currentModel();
 
         if (!$apiKey) {
             return ['error' => 'Mistral credentials missing'];
@@ -264,7 +279,10 @@ class MistralClient
 
             $message = $this->extractMessage($result);
             if (!$this->isInvalidAssistantMessage($message, $history)) {
-                return ['message' => $message];
+                return [
+                    'message' => $message,
+                    'meta' => $this->buildMeta($result, $attempts + 1),
+                ];
             }
 
             $attempts++;
@@ -320,6 +338,7 @@ class MistralClient
                     return [
                         'needs_more' => false,
                         'summary' => $summary,
+                        'meta' => $this->buildMeta($result, $attempts + 1),
                     ];
                 }
             }
@@ -331,6 +350,7 @@ class MistralClient
                     return [
                         'needs_more' => true,
                         'message' => $message,
+                        'meta' => $this->buildMeta($result, $attempts + 1),
                     ];
                 }
 
@@ -339,6 +359,7 @@ class MistralClient
                     return [
                         'needs_more' => true,
                         'message' => $next['message'],
+                        'meta' => $next['meta'] ?? null,
                     ];
                 }
 
@@ -349,6 +370,50 @@ class MistralClient
             $reviewMessages[] = [
                 'role' => 'user',
                 'content' => 'Retorne apenas JSON válido, sem markdown.',
+            ];
+        }
+
+        return ['error' => 'invalid_message'];
+    }
+
+    /**
+     * Força resumo mesmo com informações incompletas.
+     */
+    public function summarizeNow(Project $project, array $history): array
+    {
+        $messages = array_merge($this->baseContext($project), $history, [
+            [
+                'role' => 'user',
+                'content' => 'Gere um resumo do projeto em pt-BR mesmo que faltem dados. Retorne JSON {summary:{overview, purpose, scope, target_users, nfr_summary}}. Se faltar informação, deixe claro com "Não informado" ou "A definir" em cada campo. Seja direto e realista. Retorne somente o JSON, sem markdown e sem ```.',
+            ],
+        ]);
+
+        $attempts = 0;
+        while ($attempts < 2) {
+            $result = $this->callAgent($messages);
+            if (isset($result['error'])) {
+                $attempts++;
+                $messages[] = [
+                    'role' => 'user',
+                    'content' => 'Retorne apenas JSON válido, sem markdown.',
+                ];
+                continue;
+            }
+
+            $content = $this->extractContent($result);
+            $output = is_string($content) ? $this->decodeJsonContent($content) : null;
+            $summary = is_array($output['summary'] ?? null) ? $output['summary'] : null;
+            if ($summary) {
+                return [
+                    'summary' => $summary,
+                    'meta' => $this->buildMeta($result, $attempts + 1),
+                ];
+            }
+
+            $attempts++;
+            $messages[] = [
+                'role' => 'user',
+                'content' => 'Preciso apenas do JSON no formato combinado, sem markdown.',
             ];
         }
 

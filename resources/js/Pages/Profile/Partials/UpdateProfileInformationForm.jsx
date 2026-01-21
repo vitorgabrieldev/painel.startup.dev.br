@@ -5,6 +5,21 @@ import TextInput from '@/Components/TextInput';
 import { Transition } from '@headlessui/react';
 import { Link, useForm, usePage } from '@inertiajs/react';
 
+const formatCpf = (value) => {
+    const digits = value.replace(/\D/g, '').slice(0, 11);
+    let formatted = '';
+    for (let i = 0; i < digits.length; i += 1) {
+        if (i === 3 || i === 6) {
+            formatted += '.';
+        }
+        if (i === 9) {
+            formatted += '-';
+        }
+        formatted += digits[i];
+    }
+    return formatted;
+};
+
 export default function UpdateProfileInformation({
     mustVerifyEmail,
     status,
@@ -15,7 +30,9 @@ export default function UpdateProfileInformation({
     const { data, setData, patch, errors, processing, recentlySuccessful } =
         useForm({
             name: user.name,
+            username: user.username ?? '',
             email: user.email,
+            cpf: user.cpf ? formatCpf(user.cpf) : '',
         });
 
     const submit = (e) => {
@@ -38,7 +55,7 @@ export default function UpdateProfileInformation({
 
             <form onSubmit={submit} className="mt-6 space-y-6">
                 <div>
-                    <InputLabel htmlFor="name" value="Nome" />
+                    <InputLabel htmlFor="name" value="Nome completo" />
 
                     <TextInput
                         id="name"
@@ -51,6 +68,21 @@ export default function UpdateProfileInformation({
                     />
 
                     <InputError className="mt-2" message={errors.name} />
+                </div>
+
+                <div>
+                    <InputLabel htmlFor="username" value="Usuário" />
+
+                    <TextInput
+                        id="username"
+                        className="mt-1 block w-full"
+                        value={data.username}
+                        onChange={(e) => setData('username', e.target.value)}
+                        required
+                        autoComplete="username"
+                    />
+
+                    <InputError className="mt-2" message={errors.username} />
                 </div>
 
                 <div>
@@ -67,6 +99,23 @@ export default function UpdateProfileInformation({
                     />
 
                     <InputError className="mt-2" message={errors.email} />
+                </div>
+
+                <div>
+                    <InputLabel htmlFor="cpf" value="CPF" />
+
+                    <TextInput
+                        id="cpf"
+                        className="mt-1 block w-full"
+                        value={data.cpf}
+                        onChange={(e) => setData('cpf', formatCpf(e.target.value))}
+                        inputMode="numeric"
+                        maxLength={14}
+                        required
+                        autoComplete="off"
+                    />
+
+                    <InputError className="mt-2" message={errors.cpf} />
                 </div>
 
                 {mustVerifyEmail && user.email_verified_at === null && (
@@ -92,7 +141,13 @@ export default function UpdateProfileInformation({
                 )}
 
                 <div className="flex items-center gap-4">
-                    <PrimaryButton disabled={processing}>Salvar</PrimaryButton>
+                    <PrimaryButton
+                        disabled={processing}
+                        loading={processing}
+                        type="submit"
+                    >
+                        Salvar
+                    </PrimaryButton>
 
                     <Transition
                         show={recentlySuccessful}

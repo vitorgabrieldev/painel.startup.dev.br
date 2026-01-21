@@ -4,10 +4,12 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Str;
 
 class Project extends Model
 {
     protected $fillable = [
+        'uuid',
         'name',
         'slug',
         'purpose',
@@ -96,6 +98,11 @@ class Project extends Model
         return $this->hasMany(ProjectMember::class);
     }
 
+    public function chats(): HasMany
+    {
+        return $this->hasMany(Chat::class);
+    }
+
     public function activities(): HasMany
     {
         return $this->hasMany(Activity::class);
@@ -104,5 +111,14 @@ class Project extends Model
     public function governanceRules(): HasMany
     {
         return $this->hasMany(GovernanceRule::class);
+    }
+
+    protected static function booted(): void
+    {
+        static::creating(function (Project $project) {
+            if (!$project->uuid) {
+                $project->uuid = (string) Str::uuid();
+            }
+        });
     }
 }

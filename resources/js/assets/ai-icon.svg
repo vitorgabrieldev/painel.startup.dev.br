@@ -1,0 +1,35 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="starGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#6B5AAE"/>
+      <stop offset="100%" stop-color="#8B6CD9"/>
+    </linearGradient>
+  </defs>
+
+  <path
+    d="M256 80
+       C274 146 326 198 392 216
+       C326 234 274 286 256 352
+       C238 286 186 234 120 216
+       C186 198 238 146 256 80 Z"
+    fill="url(#starGrad)"
+  />
+
+  <path
+    d="M400 80
+       C408 112 432 136 464 144
+       C432 152 408 176 400 208
+       C392 176 368 152 336 144
+       C368 136 392 112 400 80 Z"
+    fill="url(#starGrad)"
+  />
+
+  <path
+    d="M136 320
+       C144 352 168 376 200 384
+       C168 392 144 416 136 448
+       C128 416 104 392 72 384
+       C104 376 128 352 136 320 Z"
+    fill="url(#starGrad)"
+  />
+</svg>

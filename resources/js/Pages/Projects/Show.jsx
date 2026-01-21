@@ -39,6 +39,50 @@ const statusLabel = (status) => {
     return status || '';
 };
 
+const parseMaybeJson = (value) => {
+    if (value === null || value === undefined) return null;
+    if (typeof value === 'string') {
+        const trimmed = value.trim();
+        if (!trimmed) return null;
+        const looksJson =
+            (trimmed.startsWith('{') && trimmed.endsWith('}')) ||
+            (trimmed.startsWith('[') && trimmed.endsWith(']'));
+        if (looksJson) {
+            try {
+                return JSON.parse(trimmed);
+            } catch (error) {
+                return value;
+            }
+        }
+        return value;
+    }
+    return value;
+};
+
+const normalizeText = (value) => {
+    if (value === null || value === undefined) return '';
+    if (typeof value === 'string') return value.trim();
+    if (typeof value === 'number') return String(value);
+    return '';
+};
+
+const normalizeList = (value) => {
+    if (!value) return [];
+    if (Array.isArray(value)) {
+        return value.map((item) => normalizeText(item)).filter(Boolean);
+    }
+    if (typeof value === 'string') {
+        const text = value.trim();
+        return text ? [text] : [];
+    }
+    return [];
+};
+
+const humanizeKey = (key) =>
+    key
+        .replace(/_/g, ' ')
+        .replace(/\b\w/g, (char) => char.toUpperCase());
+
 export default function Show({ project: initialProject }) {
     const [project, setProject] = useState(initialProject);
     const [loading, setLoading] = useState(false);
@@ -94,6 +138,117 @@ export default function Show({ project: initialProject }) {
             target_users: initialProject.target_users,
         });
     }, [initialProject, overviewForm]);
+
+    const renderPlainValue = (value, fallback) => {
+        const parsed = parseMaybeJson(value);
+        if (!parsed) return fallback;
+        if (typeof parsed === 'string') return parsed;
+        if (Array.isArray(parsed)) {
+            const items = normalizeList(parsed);
+            return items.length ? items.join(', ') : fallback;
+        }
+        if (typeof parsed === 'object') {
+            const pairs = Object.entries(parsed)
+                .map(([key, item]) => {
+                    const text = Array.isArray(item)
+                        ? normalizeList(item).join(', ')
+                        : normalizeText(item);
+                    if (!text) return null;
+                    return `${humanizeKey(key)}: ${text}`;
+                })
+                .filter(Boolean);
+            return pairs.length ? pairs.join(' | ') : fallback;
+        }
+        return String(parsed);
+    };
+
+    const renderScopeValue = (value) => {
+        const parsed = parseMaybeJson(value);
+        if (!parsed) return 'Sem escopo definido.';
+        if (typeof parsed === 'string') return parsed;
+        if (Array.isArray(parsed)) {
+            const items = normalizeList(parsed);
+            return items.length ? items.join(', ') : 'Sem escopo definido.';
+        }
+        if (typeof parsed === 'object') {
+            const sections = [
+                {
+                    title: 'Funcionalidades confirmadas',
+                    items: normalizeList(parsed.funcionalidades_confirmadas),
+                },
+                {
+                    title: 'Funcionalidades pendentes',
+                    items: normalizeList(parsed.funcionalidades_pendentes),
+                },
+                {
+                    title: 'Exclusões',
+                    items: normalizeList(parsed.exclusoes),
+                },
+            ].filter((section) => section.items.length > 0);
+
+            if (sections.length) {
+                return (
+                    <div className="space-y-2">
+                        {sections.map((section) => (
+                            <div key={section.title}>
+                                <p className="text-xs font-semibold text-gray-600">
+                                    {section.title}
+                                </p>
+                                <ul className="mt-1 list-disc space-y-1 pl-5">
+                                    {section.items.map((item) => (
+                                        <li key={item}>{item}</li>
+                                    ))}
+                                </ul>
+                            </div>
+                        ))}
+                    </div>
+                );
+            }
+        }
+
+        return renderPlainValue(value, 'Sem escopo definido.');
+    };
+
+    const renderTargetUsers = (value) => {
+        const parsed = parseMaybeJson(value);
+        if (!parsed) return 'Não definido';
+        if (typeof parsed === 'string') return parsed;
+        if (Array.isArray(parsed)) {
+            const items = normalizeList(parsed);
+            return items.length ? items.join(', ') : 'Não definido';
+        }
+        if (typeof parsed === 'object') {
+            const rows = [
+                { label: 'Primários', value: parsed.primarios },
+                { label: 'Secundários', value: parsed.secundarios },
+                { label: 'Restrições', value: parsed.restricoes },
+            ]
+                .map((row) => ({
+                    label: row.label,
+                    value: Array.isArray(row.value)
+                        ? normalizeList(row.value).join(', ')
+                        : normalizeText(row.value),
+                }))
+                .filter((row) => row.value);
+
+            if (rows.length) {
+                return (
+                    <div className="space-y-1">
+                        {rows.map((row) => (
+                            <div key={row.label}>
+                                <span className="font-semibold text-gray-600">
+                                    {row.label}:
+                                </span>{' '}
+                                <span>{row.value}</span>
+                            </div>
+                        ))}
+                    </div>
+                );
+            }
+        }
+
+        return renderPlainValue(value, 'Não definido');
+    };
 
     const updateProject = async (values) => {
         setLoading(true);
@@ -196,13 +351,28 @@ export default function Show({ project: initialProject }) {
                                             }
                                         >
                                             <p className="font-semibold text-gray-800">Sobre</p>
-                                            <p>{project.overview || 'Sem resumo ainda.'}</p>
+                                            <p>
+                                                {renderPlainValue(
+                                                    project.overview,
+                                                    'Sem resumo ainda.',
+                                                )}
+                                            </p>
                                             <p className="mt-3 font-semibold text-gray-800">Propósito</p>
-                                            <p>{project.purpose || 'Sem propósito definido.'}</p>
+                                            <p>
+                                                {renderPlainValue(
+                                                    project.purpose,
+                                                    'Sem propósito definido.',
+                                                )}
+                                            </p>
                                             <p className="mt-3 font-semibold text-gray-800">Escopo</p>
-                                            <p>{project.scope || 'Sem escopo definido.'}</p>
+                                            <div>{renderScopeValue(project.scope)}</div>
                                             <div className="mt-3 text-xs text-gray-500">
-                                                Público-alvo: {project.target_users || 'Não definido'}
+                                                <span className="font-semibold text-gray-600">
+                                                    Público-alvo:
+                                                </span>
+                                                <div className="mt-1">
+                                                    {renderTargetUsers(project.target_users)}
+                                                </div>
                                             </div>
                                         </Section>
                                     ),

@@ -28,7 +28,13 @@ export default function AuthenticatedLayout({ header, children }) {
                                     href={route('dashboard')}
                                     active={route().current('dashboard')}
                                 >
-                                    Painel
+                                    Criar novo projeto
+                                </NavLink>
+                                <NavLink
+                                    href={route('projects.index')}
+                                    active={route().current('projects.index')}
+                                >
+                                    Projetos
                                 </NavLink>
                             </div>
                         </div>
@@ -133,6 +139,12 @@ export default function AuthenticatedLayout({ header, children }) {
                             active={route().current('dashboard')}
                         >
                             Painel
+                        </ResponsiveNavLink>
+                        <ResponsiveNavLink
+                            href={route('projects.index')}
+                            active={route().current('projects.index')}
+                        >
+                            Projetos
                         </ResponsiveNavLink>
                     </div>
 

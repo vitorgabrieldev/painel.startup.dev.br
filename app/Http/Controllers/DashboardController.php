@@ -20,6 +20,9 @@ class DashboardController extends Controller
             'status',
             'created_at',
         ])
+            ->whereHas('members', function ($query) {
+                $query->where('user_id', auth()->id());
+            })
             ->orderByDesc('created_at')
             ->get();
 

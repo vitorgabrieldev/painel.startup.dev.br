@@ -8,6 +8,13 @@ use Illuminate\Validation\Rule;
 
 class ProfileUpdateRequest extends FormRequest
 {
+    protected function prepareForValidation(): void
+    {
+        $this->merge([
+            'cpf' => preg_replace('/\D/', '', (string) $this->cpf),
+        ]);
+    }
+
     /**
      * Get the validation rules that apply to the request.
      *
@@ -17,6 +24,13 @@ class ProfileUpdateRequest extends FormRequest
     {
         return [
             'name' => ['required', 'string', 'max:255'],
+            'username' => [
+                'required',
+                'string',
+                'max:60',
+                'alpha_dash',
+                Rule::unique(User::class)->ignore($this->user()->id),
+            ],
             'email' => [
                 'required',
                 'string',
@@ -25,6 +39,41 @@ class ProfileUpdateRequest extends FormRequest
                 'max:255',
                 Rule::unique(User::class)->ignore($this->user()->id),
             ],
+            'cpf' => [
+                'required',
+                'string',
+                'size:11',
+                Rule::unique(User::class)->ignore($this->user()->id),
+                function (string $attribute, string $value, callable $fail) {
+                    if (!$this->isValidCpf($value)) {
+                        $fail('CPF inválido.');
+                    }
+                },
+            ],
         ];
+    }
+
+    private function isValidCpf(string $cpf): bool
+    {
+        if (strlen($cpf) !== 11) {
+            return false;
+        }
+
+        if (preg_match('/^(\d)\1{10}$/', $cpf)) {
+            return false;
+        }
+
+        for ($t = 9; $t < 11; $t++) {
+            $sum = 0;
+            for ($i = 0; $i < $t; $i++) {
+                $sum += ((int) $cpf[$i]) * (($t + 1) - $i);
+            }
+            $digit = ((10 * $sum) % 11) % 10;
+            if ((int) $cpf[$t] !== $digit) {
+                return false;
+            }
+        }
+
+        return true;
     }
 }

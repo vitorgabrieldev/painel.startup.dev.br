@@ -1,4 +1,4 @@
-# Decision Hub – Feature Map (MVP scaffold)
+# Safio – Feature Map (MVP scaffold)
 
 - Project Definition: purpose, scope, target users, constraints, tags, NFR summary.
 - Use Case Catalog: personas, use cases, journeys/steps, success metrics.
@@ -22,5 +22,5 @@
 - Metrics & Health: derivable from entity coverage (future implementation).
 - Export & Sharing: generate briefs/ADRs in Markdown/PDF (future implementation).
 - API & Webhooks: planned read-only endpoints (future implementation).
-- Multi-project Hub: multiple projects in the same instance with ProjectMember and basic RBAC.
+- Multi-project workspace: multiple projects in the same instance with ProjectMember and basic RBAC.
 - Security & Access: basic RBAC via ProjectMember plus Laravel auth.

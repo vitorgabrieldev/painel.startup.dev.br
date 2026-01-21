@@ -1,10 +1,98 @@
 import { Head, Link } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
+import {
+    FiActivity,
+    FiBarChart2,
+    FiCheckCircle,
+    FiCompass,
+    FiFileText,
+    FiLayers,
+    FiLock,
+    FiShield,
+    FiTarget,
+    FiTrendingUp,
+    FiUsers,
+} from 'react-icons/fi';
 
 const TYPED_PHRASES = [
-    'Organize decisões técnicas com foco no resultado do negócio.',
-    'Reduza ruído, aumente clareza e acelere a execução.',
-    'Registre o porquê das escolhas e evite retrabalho caro.',
+    'Governança técnica com visão executiva e rastreabilidade.',
+    'Menos retrabalho, mais previsibilidade para o roadmap.',
+    'Decisões registradas para proteger margem e prazo.',
+];
+
+const EXEC_SUMMARY = [
+    {
+        icon: FiBarChart2,
+        text: 'Matriz de risco com impacto financeiro estimado.',
+    },
+    {
+        icon: FiCheckCircle,
+        text: 'Decisões aprovadas com histórico e responsáveis.',
+    },
+    {
+        icon: FiLayers,
+        text: 'Stack registrada com custo, maturidade e dependência.',
+    },
+];
+
+const RESULTS = [
+    {
+        icon: FiTrendingUp,
+        title: 'Previsibilidade',
+        text: 'Mostre impacto e dependências antes que virem custo.',
+    },
+    {
+        icon: FiTarget,
+        title: 'Governança',
+        text: 'Fluxo de aprovação e accountability em cada decisão.',
+    },
+    {
+        icon: FiUsers,
+        title: 'Clientes confiantes',
+        text: 'Documentação executiva para vender evolução técnica.',
+    },
+    {
+        icon: FiActivity,
+        title: 'Velocidade',
+        text: 'Time alinhado para decidir sem travar entregas.',
+    },
+];
+
+const STEPS = [
+    {
+        icon: FiCompass,
+        title: '1. Estruture o contexto',
+        text: 'Templates guiados para decisão, impacto e risco.',
+    },
+    {
+        icon: FiCheckCircle,
+        title: '2. Colete alinhamento',
+        text: 'Stakeholders aprovam e acompanham status.',
+    },
+    {
+        icon: FiTrendingUp,
+        title: '3. Venda com dados',
+        text: 'Mostre impacto financeiro e previsibilidade.',
+    },
+];
+
+const SECURITY = [
+    {
+        icon: FiShield,
+        text: 'Controle de acesso por projeto e responsabilidade.',
+    },
+    {
+        icon: FiLock,
+        text: 'Histórico completo de alterações e aprovadores.',
+    },
+    {
+        icon: FiFileText,
+        text: 'Documentos e anexos centralizados por decisão.',
+    },
+    {
+        icon: FiCheckCircle,
+        text: 'Relatórios exportáveis para clientes e auditorias.',
+    },
 ];
 
 export default function Landing({ canLogin, canRegister }) {
@@ -35,28 +123,53 @@ export default function Landing({ canLogin, canRegister }) {
     }, [phraseIndex, typedText, isDeleting]);
 
     return (
-        <div className="relative min-h-screen bg-[var(--color-surface)] text-[var(--color-dark)]">
-            <Head title="Safio" />
-            <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top,#EDE9FE,transparent_60%),radial-gradient(circle_at_bottom,#F5EFFF,transparent_55%)]" />
+        <div
+            className="relative min-h-screen bg-[var(--color-surface)] text-[var(--color-dark)]"
+            style={{
+                '--color-primary': '#f81a42',
+                '--color-secondary': '#0f172a',
+                '--color-surface': '#0b0f19',
+                '--color-surface-2': '#111827',
+                '--color-dark': '#f8fafc',
+                '--color-accent': '#fbbf24',
+            }}
+        >
+            <Head title="Safio Studio" />
+            <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top,#2a0b12,transparent_55%),radial-gradient(circle_at_bottom,#0b1220,transparent_55%)]" />
+            <div className="pointer-events-none absolute inset-0 -z-10 opacity-70 bg-[repeating-linear-gradient(90deg,rgba(255,255,255,0.08)_0,rgba(255,255,255,0.08)_1px,transparent_1px,transparent_84px),repeating-linear-gradient(0deg,rgba(255,255,255,0.08)_0,rgba(255,255,255,0.08)_1px,transparent_1px,transparent_84px)]" />
+            <div className="pointer-events-none absolute inset-0 -z-10 opacity-40 bg-[repeating-linear-gradient(135deg,rgba(255,255,255,0.05)_0,rgba(255,255,255,0.05)_1px,transparent_1px,transparent_14px)]" />
 
-            <header className="border-b border-[var(--color-secondary)]/10">
-                <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-                    <div className="flex items-center gap-3">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white shadow-sm ring-1 ring-[var(--color-secondary)]/10">
-                            <span className="h-3 w-3 rounded-full bg-[var(--color-primary)]" />
-                        </div>
+            <header className="border-b border-white/10 bg-black/30 backdrop-blur">
+                <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-5">
+                    <Link href="/" className="flex items-center gap-3">
                         <div>
-                            <p className="font-display text-lg font-semibold">SAFIO</p>
-                            <p className="font-display text-xs text-gray-500">
-                                Decisões técnicas com visão de mercado.
+                            <p className="font-display text-lg font-semibold tracking-tight text-white">
+                                Safio Studio
+                            </p>
+                            <p className="text-xs text-slate-400">
+                                Decisões técnicas com impacto financeiro.
                             </p>
                         </div>
+                    </Link>
+                    <div className="hidden items-center gap-6 text-sm text-slate-300 md:flex">
+                        <a href="#resultados" className="transition hover:text-white">
+                            Resultados
+                        </a>
+                        <a href="#como-funciona" className="transition hover:text-white">
+                            Como funciona
+                        </a>
+                        <a href="#seguranca" className="transition hover:text-white">
+                            Segurança
+                        </a>
+                        <a href="#cta" className="transition hover:text-white">
+                            Assinar
+                        </a>
                     </div>
                     <div className="flex items-center gap-3">
                         {canLogin && (
                             <Link
                                 href={route('login')}
-                                className="font-display rounded-lg border border-[var(--color-secondary)]/20 px-4 py-2 text-sm font-semibold text-[var(--color-dark)] transition hover:border-[var(--color-secondary)]"
+                                className="font-display rounded-lg border border-white/20 px-4 py-2 text-sm font-semibold text-white transition hover:border-white/40"
                             >
                                 Entrar
                             </Link>
@@ -73,22 +186,23 @@ export default function Landing({ canLogin, canRegister }) {
                 </div>
             </header>
 
-            <main className="mx-auto flex max-w-6xl flex-col gap-12 px-6 py-12">
-                <section className="grid gap-8 lg:grid-cols-[1.1fr,0.9fr] lg:items-center">
-                    <div className="fade-up fade-up-delay-1 space-y-5">
-                        <div className="font-display inline-flex items-center gap-2 rounded-full border border-[var(--color-secondary)]/20 bg-white/70 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-[var(--color-dark)]">
-                            Plataforma de decisões técnicas
+            <main className="mx-auto flex max-w-6xl flex-col gap-14 px-6 py-14">
+                <section className="grid gap-10 lg:grid-cols-[1.1fr,0.9fr] lg:items-center">
+                    <div className="fade-up fade-up-delay-1 space-y-6">
+                        <div className="font-display inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-white">
+                            Plataforma de governança técnica
                         </div>
-                        <h1 className="font-display text-4xl font-semibold text-[var(--color-dark)] sm:text-5xl">
-                            Decisões técnicas que viram vantagem competitiva.
+                        <h1 className="font-display text-4xl font-semibold text-white sm:text-5xl">
+                            Safio Studio transforma decisões técnicas em vantagem
+                            comercial.
                         </h1>
-                        <p className="text-base text-gray-600">
-                            O Safio organiza o “porquê” de cada escolha de
-                            arquitetura, stack e risco. Menos retrabalho, mais clareza
-                            para times e liderança.
+                        <p className="text-base text-slate-300">
+                            Centralize contexto, riscos e impacto financeiro de cada
+                            escolha. Mostre para diretorias e clientes que a
+                            engenharia tem previsibilidade, disciplina e retorno.
                         </p>
                         <div
-                            className="font-display min-h-[28px] text-sm text-[var(--color-secondary)]"
+                            className="font-display min-h-[28px] text-sm text-rose-200"
                             aria-live="polite"
                         >
                             {typedText}
@@ -100,125 +214,222 @@ export default function Landing({ canLogin, canRegister }) {
                             {canRegister && (
                                 <Link
                                     href={route('register')}
-                                    className="font-display rounded-lg bg-[var(--color-primary)] px-5 py-2.5 text-sm font-semibold text-white transition hover:brightness-95"
+                                    className="font-display rounded-lg bg-[var(--color-primary)] px-6 py-3 text-sm font-semibold text-white transition hover:brightness-95"
                                 >
-                                    Criar minha conta
+                                    Criar conta
                                 </Link>
                             )}
                             {canLogin && (
                                 <Link
                                     href={route('login')}
-                                    className="font-display rounded-lg border border-[var(--color-secondary)]/20 px-5 py-2.5 text-sm font-semibold text-[var(--color-dark)] transition hover:border-[var(--color-secondary)]"
+                                    className="font-display rounded-lg border border-white/20 px-6 py-3 text-sm font-semibold text-white transition hover:border-white/40"
                                 >
-                                    Acessar o sistema
+                                    Entrar
                                 </Link>
                             )}
                         </div>
-                    </div>
-                    <div className="fade-up fade-up-delay-2 rounded-2xl border border-[var(--color-secondary)]/10 bg-white p-6 shadow-xl">
-                        <h2 className="font-display text-lg font-semibold text-[var(--color-dark)]">
-                            O que sua equipe ganha
-                        </h2>
-                        <div className="mt-4 space-y-3 text-sm text-gray-600">
+                        <div className="flex flex-wrap gap-3 text-xs text-slate-400">
                             {[
-                                'Contexto compartilhado para reduzir dependência de pessoas-chave.',
-                                'Decisões registradas com racional, riscos e impacto real no negócio.',
-                                'Visão clara do que foi escolhido e do que foi descartado.',
+                                'Times de produto',
+                                'Consultorias',
+                                'Scale-ups',
+                                'Operações enterprise',
                             ].map((item) => (
-                                <div
+                                <span
                                     key={item}
-                                    className="rounded-xl border border-[var(--color-secondary)]/10 bg-[var(--color-surface-2)]/40 px-4 py-3 transition hover:-translate-y-1 hover:border-[var(--color-secondary)]/40 hover:bg-white hover:shadow-md"
+                                    className="rounded-full border border-white/10 bg-white/5 px-3 py-1"
                                 >
                                     {item}
+                                </span>
+                            ))}
+                        </div>
+                    </div>
+                    <div className="fade-up fade-up-delay-2 rounded-2xl border border-white/10 bg-[var(--color-surface-2)]/80 p-6 shadow-[0_30px_90px_rgba(0,0,0,0.45)]">
+                        <div className="flex items-start justify-between gap-4">
+                            <div>
+                                <p className="text-xs uppercase tracking-[0.25em] text-slate-400">
+                                    Resumo executivo
+                                </p>
+                                <h2 className="font-display mt-2 text-xl font-semibold text-white">
+                                    Seu portfólio técnico em linguagem de negócio.
+                                </h2>
+                            </div>
+                        </div>
+                        <div className="mt-6 grid gap-4 text-sm text-slate-300">
+                            {EXEC_SUMMARY.map((item) => {
+                                const Icon = item.icon;
+                                return (
+                                    <div
+                                        key={item.text}
+                                        className="flex items-start gap-3 rounded-xl border border-white/10 bg-black/30 px-4 py-3"
+                                    >
+                                        <span className="mt-0.5 inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/10 text-[var(--color-primary)]">
+                                            <Icon className="h-4 w-4" />
+                                        </span>
+                                        <span>{item.text}</span>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                        <div className="mt-6 grid gap-3 sm:grid-cols-3">
+                            {[
+                                { label: 'Onboarding mais rápido', value: '2.4x' },
+                                { label: 'Decisões auditáveis', value: '100%' },
+                            ].map((stat) => (
+                                <div
+                                    key={stat.label}
+                                    className="rounded-xl border border-white/10 bg-black/40 px-3 py-4 text-center"
+                                >
+                                    <p className="font-display text-lg font-semibold text-white">
+                                        {stat.value}
+                                    </p>
+                                    <p className="mt-1 text-[11px] uppercase tracking-wide text-slate-400">
+                                        {stat.label}
+                                    </p>
                                 </div>
                             ))}
                         </div>
                     </div>
                 </section>
 
-                <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                    {[
-                        {
-                            title: 'Propósito e escopo',
-                            text: 'Defina o que o produto resolve, para quem e até onde vai.',
-                        },
-                        {
-                            title: 'Stack e padrões',
-                            text: 'Registre tecnologia e arquitetura com contexto de escolha.',
-                        },
-                        {
-                            title: 'Decisões e trade-offs',
-                            text: 'Deixe claro o que foi aceito, o que ficou pendente e por quê.',
-                        },
-                        {
-                            title: 'NFRs e qualidade',
-                            text: 'Guarde metas de performance, segurança e escalabilidade.',
-                        },
-                        {
-                            title: 'Riscos e mitigação',
-                            text: 'Antecipe problemas e alinhe ações com o time.',
-                        },
-                        {
-                            title: 'Governança e integrações',
-                            text: 'Centralize regras, processos e links críticos do projeto.',
-                        },
-                    ].map((item) => (
-                        <div
-                            key={item.title}
-                            className="fade-up fade-up-delay-3 rounded-xl border border-[var(--color-secondary)]/10 bg-white p-5 shadow-sm transition hover:-translate-y-1 hover:border-[var(--color-secondary)]/40 hover:shadow-lg"
-                        >
-                            <h3 className="font-display text-sm font-semibold text-[var(--color-dark)]">
-                                {item.title}
-                            </h3>
-                            <p className="mt-2 text-sm text-gray-600">{item.text}</p>
-                        </div>
-                    ))}
-                </section>
-
-                <section className="fade-up grid gap-6 rounded-2xl border border-[var(--color-secondary)]/10 bg-white p-8 shadow-sm lg:grid-cols-[1.1fr,0.9fr]">
-                    <div>
-                        <h2 className="font-display text-2xl font-semibold text-[var(--color-dark)]">
-                            Para equipes que precisam de previsibilidade técnica.
-                        </h2>
-                        <p className="mt-3 text-sm text-gray-600">
-                            Ideal para tech leads, startups e consultorias que precisam
-                            preservar conhecimento, reduzir dívida técnica e justificar
-                            escolhas com visão de mercado.
-                        </p>
-                    </div>
-                    <div className="grid gap-3 text-sm text-gray-600">
-                        {[
-                            'Onboarding mais rápido com contexto estruturado.',
-                            'Menos retrabalho ao revisar decisões antigas.',
-                            'Clareza para negociar prazos e investimentos.',
-                        ].map((item) => (
+                <section
+                    id="resultados"
+                    className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4"
+                >
+                    {RESULTS.map((item) => {
+                        const Icon = item.icon;
+                        return (
                             <div
-                                key={item}
-                                className="rounded-xl border border-[var(--color-secondary)]/10 bg-[var(--color-surface-2)]/40 px-4 py-3 transition hover:-translate-y-1 hover:border-[var(--color-secondary)]/40 hover:bg-white hover:shadow-md"
+                                key={item.title}
+                                className="fade-up fade-up-delay-3 rounded-xl border border-white/10 bg-[var(--color-surface-2)]/70 p-5 shadow-sm"
                             >
-                                {item}
+                                <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-white/10 text-[var(--color-primary)]">
+                                    <Icon className="h-4 w-4" />
+                                </span>
+                                <h3 className="mt-3 font-display text-sm font-semibold text-white">
+                                    {item.title}
+                                </h3>
+                                <p className="mt-2 text-sm text-slate-300">{item.text}</p>
                             </div>
-                        ))}
+                        );
+                    })}
+                </section>
+
+                <section
+                    id="como-funciona"
+                    className="grid gap-6 rounded-2xl border border-white/10 bg-[var(--color-surface-2)]/70 p-8 shadow-sm lg:grid-cols-[1.1fr,0.9fr]"
+                >
+                    <div>
+                        <h2 className="font-display text-2xl font-semibold text-white">
+                            Controle o ciclo de decisões e transforme isso em
+                            argumento de venda.
+                        </h2>
+                        <p className="mt-3 text-sm text-slate-300">
+                            Safio Studio consolida dados técnicos e transforma em
+                            entregáveis para diretoria, clientes e auditorias. Tudo
+                            em um painel único.
+                        </p>
+                        <div className="mt-6 space-y-3 text-sm text-slate-300">
+                            {[
+                                'Mapeie escopo, stack, riscos e NFRs por projeto.',
+                                'Aprove decisões com stakeholders e registre evidências.',
+                                'Compartilhe relatórios com linguagem executiva.',
+                            ].map((item) => (
+                                <div
+                                    key={item}
+                                    className="rounded-xl border border-white/10 bg-black/40 px-4 py-3"
+                                >
+                                    {item}
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                    <div className="grid gap-4 text-sm text-slate-300">
+                        {STEPS.map((step) => {
+                            const Icon = step.icon;
+                            return (
+                                <div
+                                    key={step.title}
+                                    className="rounded-xl border border-white/10 bg-black/30 px-4 py-4 shadow-sm"
+                                >
+                                    <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-white/10 text-[var(--color-primary)]">
+                                        <Icon className="h-4 w-4" />
+                                    </span>
+                                    <h3 className="mt-3 font-display text-sm font-semibold text-white">
+                                        {step.title}
+                                    </h3>
+                                    <p className="mt-2 text-sm text-slate-300">
+                                        {step.text}
+                                    </p>
+                                </div>
+                            );
+                        })}
                     </div>
                 </section>
 
-                <section className="fade-up flex flex-col items-start justify-between gap-4 rounded-2xl border border-[var(--color-secondary)]/10 bg-[var(--color-secondary)]/5 p-8 shadow-sm md:flex-row md:items-center">
-                    <div>
-                        <h2 className="font-display text-2xl font-semibold text-[var(--color-dark)]">
-                            Traga previsibilidade para suas decisões.
+                <section
+                    id="seguranca"
+                    className="grid gap-6 rounded-2xl border border-white/10 bg-[var(--color-surface-2)]/70 p-8 shadow-sm lg:grid-cols-[0.9fr,1.1fr]"
+                >
+                    <div className="space-y-3">
+                        <p className="text-xs uppercase tracking-[0.3em] text-slate-400">
+                            Segurança e compliance
+                        </p>
+                        <h2 className="font-display text-2xl font-semibold text-white">
+                            Confie a governança técnica a um fluxo auditável.
                         </h2>
-                        <p className="mt-2 text-sm text-gray-600">
-                            Comece agora e documente o que realmente mantém o projeto saudável.
+                        <p className="text-sm text-slate-300">
+                            Políticas claras, histórico de decisão e acesso por
+                            perfil. A base certa para ISO, SOC e auditorias.
                         </p>
                     </div>
-                    {canRegister && (
-                        <Link
-                            href={route('register')}
-                            className="font-display rounded-lg bg-[var(--color-primary)] px-5 py-2.5 text-sm font-semibold text-white transition hover:brightness-95"
-                        >
-                            Começar agora
-                        </Link>
-                    )}
+                    <div className="grid gap-3 text-sm text-slate-300 sm:grid-cols-2">
+                        {SECURITY.map((item) => {
+                            const Icon = item.icon;
+                            return (
+                                <div
+                                    key={item.text}
+                                    className="flex items-start gap-3 rounded-xl border border-white/10 bg-black/40 px-4 py-3"
+                                >
+                                    <span className="mt-0.5 inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/10 text-[var(--color-primary)]">
+                                        <Icon className="h-4 w-4" />
+                                    </span>
+                                    <span>{item.text}</span>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </section>
+
+                <section
+                    id="cta"
+                    className="fade-up rounded-2xl border border-white/10 bg-[var(--color-primary)]/15 p-8 text-center shadow-sm"
+                >
+                    <h2 className="font-display text-2xl font-semibold text-white">
+                        Pronto para vender confiança técnica?
+                    </h2>
+                    <p className="mt-3 text-sm text-slate-300">
+                        Mostre para clientes e diretorias que as escolhas técnicas
+                        do seu time viram previsibilidade e margem.
+                    </p>
+                    <div className="mt-6 flex flex-wrap justify-center gap-3">
+                        {canRegister && (
+                            <Link
+                                href={route('register')}
+                                className="font-display rounded-lg bg-[var(--color-primary)] px-6 py-3 text-sm font-semibold text-white transition hover:brightness-95"
+                            >
+                                Criar conta
+                            </Link>
+                        )}
+                        {canLogin && (
+                            <Link
+                                href={route('login')}
+                                className="font-display rounded-lg border border-white/20 px-6 py-3 text-sm font-semibold text-white transition hover:border-white/40"
+                            >
+                                Entrar
+                            </Link>
+                        )}
+                    </div>
                 </section>
             </main>
         </div>
