@@ -1,0 +1,49 @@
+name: Deploy (rsync)
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      SSH_PROD_HOST: ${{ secrets.SSH_PROD_HOST }}
+      SSH_PROD_USER: ${{ secrets.SSH_PROD_USER }}
+      SSH_PROD_PASSWORD: ${{ secrets.SSH_PROD_PASSWORD }}
+      SSH_PROD_FOLDER: ${{ secrets.SSH_PROD_FOLDER }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install rsync + sshpass
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y rsync sshpass
+
+      - name: Sync files to server
+        run: |
+          SSH_OPTS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
+          sshpass -p "$SSH_PROD_PASSWORD" rsync -az --delete \
+            --exclude-from=deploy/rsync-exclude.txt \
+            -e "ssh $SSH_OPTS" \
+            ./app/ "$SSH_PROD_USER@$SSH_PROD_HOST:$SSH_PROD_FOLDER"
+
+      - name: Build & clear caches on server
+        run: |
+          SSH_OPTS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
+          sshpass -p "$SSH_PROD_PASSWORD" ssh $SSH_OPTS \
+            "$SSH_PROD_USER@$SSH_PROD_HOST" \
+            "cd $SSH_PROD_FOLDER \
+            && composer install --no-dev --optimize-autoloader \
+            && if [ -f yarn.lock ]; then yarn install --frozen-lockfile && yarn build; \
+               elif [ -f package-lock.json ]; then npm ci && npm run build; \
+               else npm install && npm run build; fi \
+            && php artisan migrate --force \
+            && php artisan storage:link || true \
+            && php artisan optimize:clear \
+            && php artisan config:cache \
+            && php artisan route:cache \
+            && php artisan view:cache"
