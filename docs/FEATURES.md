@@ -1,0 +1,26 @@
+# Decision Hub – Feature Map (MVP scaffold)
+
+- Project Definition: purpose, scope, target users, constraints, tags, NFR summary.
+- Use Case Catalog: personas, use cases, journeys/steps, success metrics.
+- Tech Stack Registry: languages, frameworks, databases, infra, status (chosen/evaluating), rationale.
+- Architecture Patterns: adopted patterns, constraints, references, status (adopted/evaluating).
+- Decision Records (ADRs): context, options, decision, consequences, timeline, supersede.
+- NFRs & Quality Goals: category (scalability, security, performance, cost, reliability, compliance, UX, maintainability), metrics and targets.
+- Consistency Checks: manual/AI checks over stack, NFRs and architecture (status ok/warning/risk).
+- Risk & Trade-off Tracker: severity, likelihood, impact, mitigation, owner.
+- Folder & Module Conventions: paths, rules and ownership.
+- Integration Links: repositories, issues/PRs, external docs.
+- Playbooks & Templates: ADR/RFC templates, diagrams, checklists (global or per project).
+- Change Impact Notes: architectural impact, risk and relation to ADRs.
+- Timeline & Evolution: history via Activities plus ADR supersedes.
+- AI Advisory & Consistency Scans: flags via Mistral agent (keys in .env).
+- Onboarding Briefs: generate briefs from the entities above (UI to complete).
+- Constraints & Guardrails: stored as Governance Rules.
+- Governance Rules: approval requirements, scope and status.
+- Notifications & Feeds: modeled as Activities (event production to complete).
+- Search & Retrieval: planned via textual attributes (indexing/UX to complete).
+- Metrics & Health: derivable from entity coverage (future implementation).
+- Export & Sharing: generate briefs/ADRs in Markdown/PDF (future implementation).
+- API & Webhooks: planned read-only endpoints (future implementation).
+- Multi-project Hub: multiple projects in the same instance with ProjectMember and basic RBAC.
+- Security & Access: basic RBAC via ProjectMember plus Laravel auth.
