@@ -29,7 +29,7 @@ jobs:
           sshpass -p "$SSH_PROD_PASSWORD" rsync -az --delete \
             --exclude-from=deploy/rsync-exclude.txt \
             -e "ssh $SSH_OPTS" \
-            ./app/ "$SSH_PROD_USER@$SSH_PROD_HOST:$SSH_PROD_FOLDER"
+            ./ "$SSH_PROD_USER@$SSH_PROD_HOST:$SSH_PROD_FOLDER"
 
       - name: Build & clear caches on server
         run: |
