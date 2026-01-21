@@ -26,7 +26,7 @@ jobs:
       - name: Sync files to server
         run: |
           SSH_OPTS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
-          sshpass -p "$SSH_PROD_PASSWORD" rsync -az --no-times --omit-dir-times --delete \
+          sshpass -p "$SSH_PROD_PASSWORD" rsync -az --no-times --no-perms --no-owner --no-group --omit-dir-times --delete \
             --exclude-from=deploy/rsync-exclude.txt \
             -e "ssh $SSH_OPTS" \
             ./ "$SSH_PROD_USER@$SSH_PROD_HOST:$SSH_PROD_FOLDER"
