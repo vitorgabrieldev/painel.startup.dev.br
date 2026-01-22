@@ -8,23 +8,46 @@ import {
     Input,
     Modal,
     Select,
-    Space,
     message,
     List,
     Tabs,
-    Tag,
     Tooltip,
 } from 'antd';
-import { HiArrowLeft } from 'react-icons/hi';
+import {
+    FiAlertTriangle,
+    FiClipboard,
+    FiEdit2,
+    FiFileText,
+    FiGitBranch,
+    FiHome,
+    FiLayers,
+    FiLink,
+    FiShield,
+    FiCheckSquare,
+} from 'react-icons/fi';
 
 const { TextArea } = Input;
 
-const Section = ({ title, action, children, subtitle }) => (
+const Section = ({ title, titleTooltip, action, children, subtitle }) => (
     <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-        <div className="mb-3 flex items-center justify-between">
+        <div className="mb-4 flex items-start justify-between gap-3">
             <div>
-                <h3 className="text-sm font-semibold text-gray-900">{title}</h3>
-                {subtitle && <p className="text-xs text-gray-500">{subtitle}</p>}
+                {titleTooltip ? (
+                    <Tooltip title={titleTooltip} placement="topLeft">
+                        <h3 className="font-display text-lg font-semibold text-gray-900">
+                            {title}
+                        </h3>
+                    </Tooltip>
+                ) : (
+                    <h3 className="font-display text-lg font-semibold text-gray-900">
+                        {title}
+                    </h3>
+                )}
+                {subtitle && (
+                    <p className="mt-1 text-sm font-medium text-gray-600">
+                        {subtitle}
+                    </p>
+                )}
             </div>
         {action}
         </div>
@@ -83,6 +106,28 @@ const humanizeKey = (key) =>
         .replace(/_/g, ' ')
         .replace(/\b\w/g, (char) => char.toUpperCase());
 
+const toPlainText = (value) => {
+    const parsed = parseMaybeJson(value);
+    if (!parsed) return '';
+    if (typeof parsed === 'string') return parsed;
+    if (Array.isArray(parsed)) {
+        return normalizeList(parsed).join(', ');
+    }
+    if (typeof parsed === 'object') {
+        return Object.entries(parsed)
+            .map(([key, item]) => {
+                const text = Array.isArray(item)
+                    ? normalizeList(item).join(', ')
+                    : normalizeText(item);
+                if (!text) return null;
+                return `${humanizeKey(key)}: ${text}`;
+            })
+            .filter(Boolean)
+            .join(' | ');
+    }
+    return String(parsed);
+};
+
 export default function Show({ project: initialProject }) {
     const [project, setProject] = useState(initialProject);
     const [loading, setLoading] = useState(false);
@@ -132,10 +177,10 @@ export default function Show({ project: initialProject }) {
     useEffect(() => {
         setProject(initialProject);
         overviewForm.setFieldsValue({
-            overview: initialProject.overview,
-            purpose: initialProject.purpose,
-            scope: initialProject.scope,
-            target_users: initialProject.target_users,
+            overview: toPlainText(initialProject.overview),
+            purpose: toPlainText(initialProject.purpose),
+            scope: toPlainText(initialProject.scope),
+            target_users: toPlainText(initialProject.target_users),
         });
     }, [initialProject, overviewForm]);
 
@@ -317,15 +362,25 @@ export default function Show({ project: initialProject }) {
             <Head title={project.name} />
             <div className="py-8">
                 <div className="mx-auto max-w-7xl space-y-4 px-4 sm:px-6 lg:px-8">
-                    <div className="flex flex-wrap items-center gap-3 text-sm text-gray-600">
-                        <Link href={route('dashboard')}>
-                            <PrimaryButton variant="red" className="!text-white">
-                                <HiArrowLeft className="mr-2" /> Voltar para dashboard
-                            </PrimaryButton>
-                        </Link>
-                        <Tooltip title="Status atual do projeto">
-                            <Tag color="green">{statusLabel(project.status)}</Tag>
-                        </Tooltip>
+                    <div className="mb-6 flex flex-wrap items-center gap-3 text-sm text-gray-600">
+                        <nav className="flex items-center gap-2 text-sm text-gray-500">
+                            <Link
+                                href={route('dashboard')}
+                                className="flex items-center gap-1 text-gray-500 transition hover:text-[var(--color-secondary)]"
+                            >
+                                <FiHome className="h-4 w-4" />
+                                Home
+                            </Link>
+                            <span className="text-gray-300">/</span>
+                            <Link
+                                href={route('projects.index')}
+                                className="text-gray-500 transition hover:text-[var(--color-secondary)]"
+                            >
+                                Projetos
+                            </Link>
+                            <span className="text-gray-300">/</span>
+                            <span className="text-gray-400">{project.name}</span>
+                        </nav>
                     </div>
 
                     <div className="flex flex-col gap-4">
@@ -333,20 +388,32 @@ export default function Show({ project: initialProject }) {
                             tabPosition="left"
                             activeKey={activeTab}
                             onChange={setActiveTab}
+                            tabBarStyle={{ width: 240 }}
+                            className="project-tabs"
                             items={[
                                 {
                                     key: 'overview',
-                                    label: 'Sobre/Escopo',
+                                    label: (
+                                        <Tooltip title="Resumo do projeto, propósito e escopo">
+                                            <span className="project-tab-label flex items-center gap-2">
+                                                <FiFileText className="h-4 w-4 text-[var(--color-primary)]" />
+                                                <span>Sobre/Escopo</span>
+                                            </span>
+                                        </Tooltip>
+                                    ),
                                     children: (
                                         <Section
                                             title="Sobre, propósito e escopo"
+                                            titleTooltip="Resumo geral do projeto com objetivo e limites. Ex.: 'Marketplace de serviços locais com foco em PMEs'."
                                             action={
                                                 <PrimaryButton
                                                     variant="outlineRed"
-                                                    className="!text-[var(--color-primary)]"
                                                     onClick={() => setEditingOverview(true)}
                                                 >
-                                                    Editar
+                                                    <span className="inline-flex items-center gap-2">
+                                                        <FiEdit2 className="h-4 w-4" />
+                                                        Editar
+                                                    </span>
                                                 </PrimaryButton>
                                             }
                                         >
@@ -379,10 +446,18 @@ export default function Show({ project: initialProject }) {
                                 },
                                 {
                                     key: 'stack',
-                                    label: 'Stack técnica',
+                                    label: (
+                                        <Tooltip title="Linguagens, frameworks, bancos e infra">
+                                            <span className="project-tab-label flex items-center gap-2">
+                                                <FiLayers className="h-4 w-4 text-[var(--color-primary)]" />
+                                                <span>Stack técnica</span>
+                                            </span>
+                                        </Tooltip>
+                                    ),
                                     children: (
                                         <Section
                                             title="Stack técnica"
+                                            titleTooltip="Tecnologias do produto. Ex.: React, Laravel, PostgreSQL, Redis, AWS."
                                             action={
                                                 <PrimaryButton
                                                     variant="red"
@@ -445,7 +520,10 @@ export default function Show({ project: initialProject }) {
                                                                         setStackModal(true);
                                                                     }}
                                                                 >
-                                                                    Editar
+                                                                    <span className="inline-flex items-center gap-1.5">
+                                                                        <FiEdit2 className="h-3.5 w-3.5" />
+                                                                        Editar
+                                                                    </span>
                                                                 </PrimaryButton>,
                                                             ]}
                                                         >
@@ -484,10 +562,18 @@ export default function Show({ project: initialProject }) {
                                 },
                                 {
                                     key: 'patterns',
-                                    label: 'Padrões',
+                                    label: (
+                                        <Tooltip title="Padrões de arquitetura adotados">
+                                            <span className="project-tab-label flex items-center gap-2">
+                                                <FiGitBranch className="h-4 w-4 text-[var(--color-primary)]" />
+                                                <span>Padrões</span>
+                                            </span>
+                                        </Tooltip>
+                                    ),
                                     children: (
                                         <Section
                                             title="Padrões de arquitetura"
+                                            titleTooltip="Padrões e abordagens. Ex.: MVC, Clean Architecture, Event-driven, CQRS."
                                             action={
                                                 <PrimaryButton
                                                     variant="red"
@@ -550,7 +636,10 @@ export default function Show({ project: initialProject }) {
                                                                         setPatternModal(true);
                                                                     }}
                                                                 >
-                                                                    Editar
+                                                                    <span className="inline-flex items-center gap-1.5">
+                                                                        <FiEdit2 className="h-3.5 w-3.5" />
+                                                                        Editar
+                                                                    </span>
                                                                 </PrimaryButton>,
                                                             ]}
                                                         >
@@ -586,10 +675,18 @@ export default function Show({ project: initialProject }) {
                                 },
                                 {
                                     key: 'risks',
-                                    label: 'Riscos',
+                                    label: (
+                                        <Tooltip title="Riscos, impacto e mitigação">
+                                            <span className="project-tab-label flex items-center gap-2">
+                                                <FiAlertTriangle className="h-4 w-4 text-[var(--color-primary)]" />
+                                                <span>Riscos</span>
+                                            </span>
+                                        </Tooltip>
+                                    ),
                                     children: (
                                         <Section
                                             title="Riscos"
+                                            titleTooltip="Riscos e mitigação. Ex.: atraso de integração, compliance, SLA, custo."
                                             action={
                                                 <PrimaryButton
                                                     variant="red"
@@ -635,7 +732,10 @@ export default function Show({ project: initialProject }) {
                                                                         setRiskModal(true);
                                                                     }}
                                                                 >
-                                                                    Editar
+                                                                    <span className="inline-flex items-center gap-1.5">
+                                                                        <FiEdit2 className="h-3.5 w-3.5" />
+                                                                        Editar
+                                                                    </span>
                                                                 </PrimaryButton>,
                                                             ]}
                                                         >
@@ -668,10 +768,18 @@ export default function Show({ project: initialProject }) {
                                 },
                                 {
                                     key: 'integrations',
-                                    label: 'Integrações',
+                                    label: (
+                                        <Tooltip title="Integrações, links e ferramentas externas">
+                                            <span className="project-tab-label flex items-center gap-2">
+                                                <FiLink className="h-4 w-4 text-[var(--color-primary)]" />
+                                                <span>Integrações</span>
+                                            </span>
+                                        </Tooltip>
+                                    ),
                                     children: (
                                         <Section
                                             title="Integrações"
+                                            titleTooltip="Integrações externas e links úteis. Ex.: GitHub, Jira, Stripe, Sentry."
                                             action={
                                                 <PrimaryButton
                                                     variant="red"
@@ -717,7 +825,10 @@ export default function Show({ project: initialProject }) {
                                                                         setIntegrationModal(true);
                                                                     }}
                                                                 >
-                                                                    Editar
+                                                                    <span className="inline-flex items-center gap-1.5">
+                                                                        <FiEdit2 className="h-3.5 w-3.5" />
+                                                                        Editar
+                                                                    </span>
                                                                 </PrimaryButton>,
                                                             ]}
                                                         >
@@ -746,10 +857,18 @@ export default function Show({ project: initialProject }) {
                                 },
                                 {
                                     key: 'governance',
-                                    label: 'Governança',
+                                    label: (
+                                        <Tooltip title="Regras, aprovações e processos">
+                                            <span className="project-tab-label flex items-center gap-2">
+                                                <FiShield className="h-4 w-4 text-[var(--color-primary)]" />
+                                                <span>Governança</span>
+                                            </span>
+                                        </Tooltip>
+                                    ),
                                     children: (
                                         <Section
                                             title="Governança"
+                                            titleTooltip="Regras e processos. Ex.: PR review obrigatório, deploy com aprovação, acesso por papel."
                                             action={
                                                 <PrimaryButton
                                                     variant="red"
@@ -811,7 +930,10 @@ export default function Show({ project: initialProject }) {
                                                                         setGovModal(true);
                                                                     }}
                                                                 >
-                                                                    Editar
+                                                                    <span className="inline-flex items-center gap-1.5">
+                                                                        <FiEdit2 className="h-3.5 w-3.5" />
+                                                                        Editar
+                                                                    </span>
                                                                 </PrimaryButton>,
                                                             ]}
                                                         >
@@ -845,10 +967,18 @@ export default function Show({ project: initialProject }) {
                                 },
                                 {
                                     key: 'nfrs',
-                                    label: 'NFRs',
+                                    label: (
+                                        <Tooltip title="Metas não funcionais e qualidade">
+                                            <span className="project-tab-label flex items-center gap-2">
+                                                <FiCheckSquare className="h-4 w-4 text-[var(--color-primary)]" />
+                                                <span>NFRs</span>
+                                            </span>
+                                        </Tooltip>
+                                    ),
                                     children: (
                                         <Section
                                             title="NFRs & Qualidade"
+                                            titleTooltip="Metas não funcionais. Ex.: 99,9% uptime, p95 < 300ms, LGPD."
                                             action={
                                                 <PrimaryButton
                                                     variant="red"
@@ -911,7 +1041,10 @@ export default function Show({ project: initialProject }) {
                                                                         setNfrModal(true);
                                                                     }}
                                                                 >
-                                                                    Editar
+                                                                    <span className="inline-flex items-center gap-1.5">
+                                                                        <FiEdit2 className="h-3.5 w-3.5" />
+                                                                        Editar
+                                                                    </span>
                                                                 </PrimaryButton>,
                                                             ]}
                                                         >
@@ -942,10 +1075,18 @@ export default function Show({ project: initialProject }) {
                                 },
                                 {
                                     key: 'decisions',
-                                    label: 'Decisões',
+                                    label: (
+                                        <Tooltip title="Decisões arquiteturais registradas">
+                                            <span className="project-tab-label flex items-center gap-2">
+                                                <FiClipboard className="h-4 w-4 text-[var(--color-primary)]" />
+                                                <span>Decisões</span>
+                                            </span>
+                                        </Tooltip>
+                                    ),
                                     children: (
                                         <Section
                                             title="Decisões (ADRs)"
+                                            titleTooltip="Decisões arquiteturais registradas. Ex.: escolher PostgreSQL, monorepo vs multirepo."
                                             action={
                                                 <PrimaryButton
                                                     variant="red"
@@ -1009,7 +1150,10 @@ export default function Show({ project: initialProject }) {
                                                                         setDecisionModal(true);
                                                                     }}
                                                                 >
-                                                                    Editar
+                                                                    <span className="inline-flex items-center gap-1.5">
+                                                                        <FiEdit2 className="h-3.5 w-3.5" />
+                                                                        Editar
+                                                                    </span>
                                                                 </PrimaryButton>,
                                                             ]}
                                                         >
@@ -1046,18 +1190,25 @@ export default function Show({ project: initialProject }) {
                 open={editingOverview}
                 onCancel={() => setEditingOverview(false)}
                 footer={null}
-                title="Editar informações do projeto"
+                title={
+                    <span className="text-xl font-semibold text-gray-900">
+                        Editar informações do projeto
+                    </span>
+                }
+                width="60%"
                 centered
                 destroyOnClose
+                className="project-edit-modal"
             >
                 <Form
                     layout="vertical"
                     form={overviewForm}
+                    className="flex flex-col"
                     initialValues={{
-                        overview: project.overview,
-                        purpose: project.purpose,
-                        scope: project.scope,
-                        target_users: project.target_users,
+                        overview: toPlainText(project.overview),
+                        purpose: toPlainText(project.purpose),
+                        scope: toPlainText(project.scope),
+                        target_users: toPlainText(project.target_users),
                     }}
                     onFinish={(values) => {
                         updateProject(values);
@@ -1065,29 +1216,29 @@ export default function Show({ project: initialProject }) {
                     }}
                 >
                     <Form.Item label="Sobre" name="overview">
-                        <TextArea rows={3} />
+                        <TextArea rows={5} className="resize-none" />
                     </Form.Item>
                     <Form.Item label="Propósito" name="purpose">
-                        <TextArea rows={2} />
+                        <TextArea rows={3} className="resize-none" />
                     </Form.Item>
                     <Form.Item label="Escopo" name="scope">
-                        <TextArea rows={2} />
+                        <TextArea rows={4} className="resize-none" />
                     </Form.Item>
                     <Form.Item label="Público-alvo" name="target_users">
-                        <Input />
+                        <Input className="h-11" />
                     </Form.Item>
-                    <Space>
-                        <PrimaryButton variant="green" type="submit" loading={loading}>
-                            Salvar
-                        </PrimaryButton>
+                    <div className="flex justify-end gap-3 pt-6">
                         <PrimaryButton
-                            variant="red"
+                            variant="outlineRed"
                             onClick={() => setEditingOverview(false)}
                             loading={loading}
                         >
                             Cancelar
                         </PrimaryButton>
-                    </Space>
+                        <PrimaryButton variant="red" type="submit" loading={loading}>
+                            Salvar
+                        </PrimaryButton>
+                    </div>
                 </Form>
             </Modal>
 

@@ -23,7 +23,7 @@ export default function PrimaryButton({
         <button
             type={type}
             disabled={disabled}
-            className={`font-display inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-semibold transition ${styles} disabled:opacity-60 ${className}`}
+            className={`font-display inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-semibold transition focus:outline-none focus-visible:outline-none focus:ring-0 focus-visible:ring-0 active:outline-none active:ring-0 ${styles} disabled:opacity-60 ${className}`}
             {...props}
         >
             {loading && (

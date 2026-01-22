@@ -1,15 +1,43 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import PrimaryButton from '@/Components/PrimaryButton';
 import { Head, router } from '@inertiajs/react';
-import { Card, Tooltip } from 'antd';
-import { FiEye } from 'react-icons/fi';
+import { Card } from 'antd';
 
 export default function Index({ projects = [] }) {
-    const statusLabel = (status) => {
-        if (status === 'active') return 'ativo';
-        if (status === 'draft') return 'rascunho';
-        if (status === 'archived') return 'arquivado';
-        return status || '';
+    const formatRelativeTime = (value) => {
+        if (!value) return '';
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) return '';
+
+        const seconds = Math.max(0, Math.floor((Date.now() - date.getTime()) / 1000));
+        if (seconds < 60) return 'agora';
+
+        const minutes = Math.floor(seconds / 60);
+        if (minutes < 60) {
+            return `${minutes} minuto${minutes === 1 ? '' : 's'} atrás`;
+        }
+
+        const hours = Math.floor(minutes / 60);
+        if (hours < 24) {
+            return `${hours} hora${hours === 1 ? '' : 's'} atrás`;
+        }
+
+        const days = Math.floor(hours / 24);
+        if (days < 7) {
+            return `${days} dia${days === 1 ? '' : 's'} atrás`;
+        }
+
+        const weeks = Math.floor(days / 7);
+        if (weeks < 5) {
+            return `${weeks} semana${weeks === 1 ? '' : 's'} atrás`;
+        }
+
+        const months = Math.floor(days / 30);
+        if (months < 12) {
+            return `${months} ${months === 1 ? 'mês' : 'meses'} atrás`;
+        }
+
+        const years = Math.floor(days / 365);
+        return `${years} ano${years === 1 ? '' : 's'} atrás`;
     };
 
     return (
@@ -24,38 +52,31 @@ export default function Index({ projects = [] }) {
                                 Nenhum projeto ainda.
                             </p>
                         ) : (
-                            <div className="divide-y divide-gray-100">
+                            <div className="space-y-3">
                                 {projects.map((project) => (
                                     <div
                                         key={project.uuid || project.id}
-                                        className="flex items-center justify-between gap-4 py-4"
+                                        className="flex cursor-pointer items-center justify-between gap-4 rounded-xl border border-gray-100 bg-white px-4 py-4 shadow-sm transition hover:border-[var(--color-secondary)]/30 hover:shadow-md"
+                                        role="button"
+                                        tabIndex={0}
+                                        onClick={() =>
+                                            router.visit(route('projects.show', project.uuid))
+                                        }
+                                        onKeyDown={(event) => {
+                                            if (event.key === 'Enter' || event.key === ' ') {
+                                                event.preventDefault();
+                                                router.visit(route('projects.show', project.uuid));
+                                            }
+                                        }}
                                     >
                                         <div className="min-w-0">
                                             <div className="line-clamp-1 text-[var(--color-dark)]">
                                                 {project.name}
                                             </div>
-                                            <span className="mt-2 inline-flex rounded-full bg-[var(--color-secondary)] px-2 py-1 text-[11px] font-semibold uppercase text-white">
-                                                {statusLabel(project.status)}
-                                            </span>
                                         </div>
-                                        <Tooltip title="Ver detalhes do projeto">
-                                            <span>
-                                                <PrimaryButton
-                                                    variant="outlineRed"
-                                                    className="!px-3 !py-1"
-                                                    onClick={() =>
-                                                        router.visit(
-                                                            route(
-                                                                'projects.show',
-                                                                project.uuid,
-                                                            ),
-                                                        )
-                                                    }
-                                                >
-                                                    <FiEye className="mr-1" /> Visualizar
-                                                </PrimaryButton>
-                                            </span>
-                                        </Tooltip>
+                                        <span className="text-xs text-gray-500">
+                                            {formatRelativeTime(project.created_at)}
+                                        </span>
                                     </div>
                                 ))}
                             </div>

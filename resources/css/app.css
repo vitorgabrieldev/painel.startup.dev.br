@@ -99,3 +99,34 @@ html {
         background-position: -200% 0;
     }
 }
+
+.project-tabs .ant-tabs-tab-btn {
+    color: #111827;
+    font-weight: 700;
+}
+
+.project-tabs .ant-tabs-tab {
+    padding-left: 0 !important;
+}
+
+.project-tabs .project-tab-label svg {
+    color: var(--color-primary);
+}
+
+.project-tabs .ant-tabs-tab:hover .ant-tabs-tab-btn,
+.project-tabs .ant-tabs-tab:hover .ant-tabs-tab-btn svg {
+    color: #c21231;
+}
+
+.project-tabs .ant-tabs-tab.ant-tabs-tab-active .ant-tabs-tab-btn {
+    color: #c21231;
+}
+
+.project-edit-modal .ant-modal-content {
+    height: 90vh;
+}
+
+.project-edit-modal .ant-modal-body {
+    height: calc(90vh - 140px);
+    overflow-y: auto;
+}
