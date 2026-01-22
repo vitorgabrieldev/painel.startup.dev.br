@@ -13,6 +13,7 @@ import {
     List,
     Tabs,
     Tooltip,
+    Tag,
 } from 'antd';
 import {
     FiAlertTriangle,
@@ -24,8 +25,10 @@ import {
     FiFileText,
     FiGitBranch,
     FiHome,
+    FiInfo,
     FiLayers,
     FiLink,
+    FiMonitor,
     FiSearch,
     FiShield,
     FiCheckSquare,
@@ -33,6 +36,16 @@ import {
 
 const { TextArea } = Input;
 const SEARCH_HISTORY_KEY = 'project.module.search.history';
+const InfoLabel = ({ text, tooltip }) => (
+    <div className="flex items-center gap-2">
+        <span>{text}</span>
+        <Tooltip title={tooltip}>
+            <span className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-gray-200 text-[10px] text-gray-500">
+                <FiInfo className="h-3 w-3" />
+            </span>
+        </Tooltip>
+    </div>
+);
 
 const Section = ({ title, titleTooltip, action, children, subtitle }) => (
     <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
@@ -143,10 +156,18 @@ const toPlainText = (value) => {
     return String(parsed);
 };
 
+const formatStackStatus = (status) => {
+    if (status === 'chosen') return 'Selecionada';
+    if (status === 'evaluating') return 'Avaliando';
+    if (status === 'deprecated') return 'Depreciada';
+    return status ? status.charAt(0).toUpperCase() + status.slice(1) : '—';
+};
+
 export default function Show({ project: initialProject }) {
     const [project, setProject] = useState(initialProject);
     const [loading, setLoading] = useState(false);
     const [messageApi, contextHolder] = message.useMessage();
+    const [isMobileBlocked, setIsMobileBlocked] = useState(false);
     const [avatarPreview, setAvatarPreview] = useState(null);
     const [avatarProcessing, setAvatarProcessing] = useState(false);
 
@@ -155,6 +176,7 @@ export default function Show({ project: initialProject }) {
 
     const [stackModal, setStackModal] = useState(false);
     const [stackForm] = Form.useForm();
+    const [editingStack, setEditingStack] = useState(null);
 
     const [patternModal, setPatternModal] = useState(false);
     const [patternForm] = Form.useForm();
@@ -227,6 +249,14 @@ export default function Show({ project: initialProject }) {
             target_users: toPlainText(initialProject.target_users),
         });
     }, [initialProject, overviewForm]);
+
+    useEffect(() => {
+        const media = window.matchMedia('(max-width: 1023px)');
+        const update = () => setIsMobileBlocked(media.matches);
+        update();
+        media.addEventListener('change', update);
+        return () => media.removeEventListener('change', update);
+    }, []);
 
     useEffect(() => {
         try {
@@ -407,6 +437,35 @@ export default function Show({ project: initialProject }) {
             messageApi.success('Projeto atualizado.');
         } catch (error) {
             messageApi.error('Erro ao salvar projeto.');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleStackSave = async () => {
+        setLoading(true);
+        try {
+            const values = stackForm.getFieldsValue();
+            if (editingStack?.id) {
+                const { data } = await axios.patch(
+                    route('projects.stack.update', [project.id, editingStack.id]),
+                    values,
+                );
+                setProject(data);
+                messageApi.success('Stack atualizada.');
+            } else {
+                const { data } = await axios.post(
+                    route('projects.stack.store', project.id),
+                    values,
+                );
+                setProject(data);
+                messageApi.success('Stack adicionada.');
+            }
+            setEditingStack(null);
+            setStackModal(false);
+            stackForm.resetFields();
+        } catch (error) {
+            messageApi.error('Erro ao salvar stack.');
         } finally {
             setLoading(false);
         }
@@ -659,6 +718,27 @@ export default function Show({ project: initialProject }) {
         </div>
     );
 
+    if (isMobileBlocked) {
+        return (
+            <AuthenticatedLayout header={null}>
+                <Head title={project.name} />
+                <div className="flex min-h-[70vh] items-center justify-center bg-[var(--color-surface)] px-6 py-12">
+                    <div className="max-w-md rounded-2xl border border-gray-200 bg-white p-6 text-center shadow-sm">
+                        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-red-500/10 text-red-600">
+                            <FiMonitor className="h-6 w-6" />
+                        </div>
+                        <h2 className="mt-4 text-lg font-semibold text-gray-900">
+                            Para melhor experiência, acesse no desktop
+                        </h2>
+                        <p className="mt-2 text-sm text-gray-600">
+                            Esta área foi otimizada para telas maiores. Em breve teremos versão mobile.
+                        </p>
+                    </div>
+                </div>
+            </AuthenticatedLayout>
+        );
+    }
+
     return (
         <AuthenticatedLayout
             header={
@@ -808,6 +888,7 @@ export default function Show({ project: initialProject }) {
                                                     className="!text-white"
                                                     onClick={() => {
                                                         stackForm.resetFields();
+                                                        setEditingStack(null);
                                                         setStackModal(true);
                                                     }}
                                                 >
@@ -823,26 +904,34 @@ export default function Show({ project: initialProject }) {
                                             {filterAndSort(stacks, 'stack').length ? (
                                                 <List
                                                     size="small"
+                                                    className="project-list project-list-spaced"
                                                     dataSource={filterAndSort(stacks, 'stack')}
                                                     renderItem={(item) => (
                                                         <List.Item
-                                                            className="!w-full p-0"
-                                                            actions={[
-                                                                <PrimaryButton
-                                                                    key="edit"
-                                                                    variant="outlineRed"
-                                                                    className="!px-3 !py-1"
-                                                                    onClick={() => {
-                                                                        stackForm.setFieldsValue(item);
-                                                                        setStackModal(true);
-                                                                    }}
-                                                                >
-                                                                    <span className="inline-flex items-center gap-1.5">
-                                                                        <FiEdit2 className="h-3.5 w-3.5" />
-                                                                        Editar
-                                                                    </span>
-                                                                </PrimaryButton>,
-                                                            ]}
+                                                            className="!w-full !px-0 !py-0"
+                                                            role="button"
+                                                            tabIndex={0}
+                                                            onClick={() => {
+                                                                stackForm.setFieldsValue({
+                                                                    ...item,
+                                                                    constraints: toPlainText(item.constraints),
+                                                                    rationale: toPlainText(item.rationale),
+                                                                });
+                                                                setEditingStack(item);
+                                                                setStackModal(true);
+                                                            }}
+                                                            onKeyDown={(event) => {
+                                                                if (event.key === 'Enter' || event.key === ' ') {
+                                                                    event.preventDefault();
+                                                                    stackForm.setFieldsValue({
+                                                                        ...item,
+                                                                        constraints: toPlainText(item.constraints),
+                                                                        rationale: toPlainText(item.rationale),
+                                                                    });
+                                                                    setEditingStack(item);
+                                                                    setStackModal(true);
+                                                                }
+                                                            }}
                                                         >
                                                             <div className="w-full rounded-lg border border-gray-200 bg-gray-50 p-3">
                                                                 <div className="grid gap-1 sm:grid-cols-2 sm:items-center">
@@ -854,8 +943,10 @@ export default function Show({ project: initialProject }) {
                                                                             {item.category} {item.version ? `· ${item.version}` : ''}
                                                                         </div>
                                                                     </div>
-                                                                    <div className="flex justify-end">
-                                                                        <Tag color="red">{item.status || '—'}</Tag>
+                                                                    <div className="flex items-center justify-end">
+                                                                        <Tag color="red">
+                                                                            {formatStackStatus(item.status)}
+                                                                        </Tag>
                                                                     </div>
                                                                 </div>
                                                                 <div className="mt-1 grid gap-1 text-xs text-gray-600 sm:grid-cols-2">
@@ -914,6 +1005,7 @@ export default function Show({ project: initialProject }) {
                                             {filterAndSort(patterns, 'patterns').length ? (
                                                 <List
                                                     size="small"
+                                                    className="project-list project-list-spaced"
                                                     dataSource={filterAndSort(patterns, 'patterns')}
                                                     renderItem={(pattern) => (
                                                         <List.Item
@@ -1002,6 +1094,7 @@ export default function Show({ project: initialProject }) {
                                             {filterAndSort(risks, 'risks').length ? (
                                                 <List
                                                     size="small"
+                                                    className="project-list project-list-spaced"
                                                     dataSource={filterAndSort(risks, 'risks')}
                                                     renderItem={(risk) => (
                                                         <List.Item
@@ -1087,6 +1180,7 @@ export default function Show({ project: initialProject }) {
                                             {filterAndSort(integrations, 'integrations').length ? (
                                                 <List
                                                     size="small"
+                                                    className="project-list project-list-spaced"
                                                     dataSource={filterAndSort(integrations, 'integrations')}
                                                     renderItem={(link) => (
                                                         <List.Item
@@ -1168,6 +1262,7 @@ export default function Show({ project: initialProject }) {
                                             {filterAndSort(governance, 'governance').length ? (
                                                 <List
                                                     size="small"
+                                                    className="project-list project-list-spaced"
                                                     dataSource={filterAndSort(governance, 'governance')}
                                                     renderItem={(rule) => (
                                                         <List.Item
@@ -1254,6 +1349,7 @@ export default function Show({ project: initialProject }) {
                                             {filterAndSort(nfrs, 'nfrs', 'priority').length ? (
                                                 <List
                                                     size="small"
+                                                    className="project-list project-list-spaced"
                                                     dataSource={filterAndSort(nfrs, 'nfrs', 'priority')}
                                                     renderItem={(nfr) => (
                                                         <List.Item
@@ -1337,6 +1433,7 @@ export default function Show({ project: initialProject }) {
                                             {filterAndSort(decisions, 'decisions').length ? (
                                                 <List
                                                     size="small"
+                                                    className="project-list project-list-spaced"
                                                     dataSource={filterAndSort(decisions, 'decisions')}
                                                     renderItem={(adr) => (
                                                         <List.Item
@@ -1432,7 +1529,6 @@ export default function Show({ project: initialProject }) {
                         <PrimaryButton
                             variant="outlineRed"
                             onClick={() => setEditingOverview(false)}
-                            loading={loading}
                         >
                             Cancelar
                         </PrimaryButton>
@@ -1447,24 +1543,63 @@ export default function Show({ project: initialProject }) {
                 open={stackModal}
                 onCancel={() => setStackModal(false)}
                 footer={null}
-                title="Adicionar stack"
+                title={editingStack ? 'Editar stack' : 'Adicionar stack'}
+                width="60%"
                 centered
                 destroyOnClose
+                className="project-edit-modal"
             >
-                <Form layout="vertical" form={stackForm} onFinish={() => handleAdd('projects.stack.store', stackForm, () => setStackModal(false))}>
+                <Form
+                    layout="vertical"
+                    form={stackForm}
+                    className="flex flex-col"
+                    onFinish={handleStackSave}
+                >
                     <Form.Item label="Categoria" name="category" rules={[{ required: true }]}>
-                        <Input placeholder="ex: language, framework, database" />
+                        <Select
+                            placeholder="Selecione"
+                            options={[
+                                { label: 'Linguagem', value: 'language' },
+                                { label: 'Framework', value: 'framework' },
+                                { label: 'Biblioteca', value: 'library' },
+                                { label: 'Banco de dados', value: 'database' },
+                                { label: 'Infraestrutura', value: 'infrastructure' },
+                                { label: 'DevOps', value: 'devops' },
+                                { label: 'Observabilidade', value: 'observability' },
+                                { label: 'Testes', value: 'testing' },
+                                { label: 'Segurança', value: 'security' },
+                                { label: 'Outro', value: 'other' },
+                            ]}
+                        />
                     </Form.Item>
-                    <Form.Item label="Nome" name="name" rules={[{ required: true }]}>
-                        <Input />
-                    </Form.Item>
-                    <Form.Item label="Versão" name="version">
-                        <Input />
-                    </Form.Item>
-                    <Form.Item label="Racional" name="rationale">
+                    <div className="grid gap-3 sm:grid-cols-2">
+                        <Form.Item label="Nome" name="name" rules={[{ required: true }]}>
+                            <Input />
+                        </Form.Item>
+                        <Form.Item label="Versão" name="version">
+                            <Input />
+                        </Form.Item>
+                    </div>
+                    <Form.Item
+                        label={
+                            <InfoLabel
+                                text="Racional"
+                                tooltip="Por que essa escolha faz sentido para o projeto."
+                            />
+                        }
+                        name="rationale"
+                    >
                         <TextArea rows={2} className="resize-none" />
                     </Form.Item>
-                    <Form.Item label="Link do fornecedor" name="vendor_url">
+                    <Form.Item
+                        label={
+                            <InfoLabel
+                                text="Link do fornecedor"
+                                tooltip="Site oficial, documentação ou repositório."
+                            />
+                        }
+                        name="vendor_url"
+                    >
                         <Input />
                     </Form.Item>
                 <Form.Item label="Status" name="status" rules={[{ required: true }]}>
@@ -1476,17 +1611,36 @@ export default function Show({ project: initialProject }) {
                         ]}
                     />
                 </Form.Item>
-                    <Form.Item label="Restrições/Notas" name="constraints">
+                    <Form.Item
+                        label={
+                            <InfoLabel
+                                text="Restrições/Notas"
+                                tooltip="Limitações, pré-requisitos ou observações relevantes."
+                            />
+                        }
+                        name="constraints"
+                    >
                         <TextArea rows={2} className="resize-none" />
                     </Form.Item>
-                <PrimaryButton
-                    variant="red"
-                    type="submit"
-                    className="!text-white"
-                    loading={loading}
-                >
-                    Salvar
-                </PrimaryButton>
+                    <div className="flex justify-end gap-3">
+                        <PrimaryButton
+                            variant="outlineRed"
+                            onClick={() => {
+                                setStackModal(false);
+                                setEditingStack(null);
+                            }}
+                        >
+                            Cancelar
+                        </PrimaryButton>
+                        <PrimaryButton
+                            variant="red"
+                            type="submit"
+                            className="!text-white"
+                            loading={loading}
+                        >
+                            Salvar
+                        </PrimaryButton>
+                    </div>
             </Form>
         </Modal>
 
@@ -1495,17 +1649,40 @@ export default function Show({ project: initialProject }) {
                 onCancel={() => setPatternModal(false)}
                 footer={null}
                 title="Adicionar padrão de arquitetura"
+                width="60%"
                 centered
                 destroyOnClose
+                className="project-edit-modal"
             >
-                <Form layout="vertical" form={patternForm} onFinish={() => handleAdd('projects.patterns.store', patternForm, () => setPatternModal(false))}>
+                <Form
+                    layout="vertical"
+                    form={patternForm}
+                    className="flex flex-col"
+                    onFinish={() => handleAdd('projects.patterns.store', patternForm, () => setPatternModal(false))}
+                >
                     <Form.Item label="Nome" name="name" rules={[{ required: true }]}>
                         <Input />
                     </Form.Item>
-                    <Form.Item label="Racional" name="rationale">
+                    <Form.Item
+                        label={
+                            <InfoLabel
+                                text="Racional"
+                                tooltip="Motivo da escolha e benefícios esperados."
+                            />
+                        }
+                        name="rationale"
+                    >
                         <TextArea rows={2} className="resize-none" />
                     </Form.Item>
-                    <Form.Item label="Referências" name="references">
+                    <Form.Item
+                        label={
+                            <InfoLabel
+                                text="Referências"
+                                tooltip="Links, artigos ou documentação relacionados."
+                            />
+                        }
+                        name="references"
+                    >
                         <TextArea rows={2} className="resize-none" />
                     </Form.Item>
                 <Form.Item label="Status" name="status" rules={[{ required: true }]}>
@@ -1517,17 +1694,33 @@ export default function Show({ project: initialProject }) {
                         ]}
                     />
                 </Form.Item>
-                    <Form.Item label="Restrições/Notas" name="constraints">
+                    <Form.Item
+                        label={
+                            <InfoLabel
+                                text="Restrições/Notas"
+                                tooltip="Limitações, riscos ou dependências conhecidas."
+                            />
+                        }
+                        name="constraints"
+                    >
                         <TextArea rows={2} className="resize-none" />
                     </Form.Item>
-                <PrimaryButton
-                    variant="red"
-                    type="submit"
-                    className="!text-white"
-                    loading={loading}
-                >
-                    Salvar
-                </PrimaryButton>
+                    <div className="flex justify-end gap-3">
+                        <PrimaryButton
+                            variant="outlineRed"
+                            onClick={() => setPatternModal(false)}
+                        >
+                            Cancelar
+                        </PrimaryButton>
+                        <PrimaryButton
+                            variant="red"
+                            type="submit"
+                            className="!text-white"
+                            loading={loading}
+                        >
+                            Salvar
+                        </PrimaryButton>
+                    </div>
             </Form>
         </Modal>
 
@@ -1536,14 +1729,30 @@ export default function Show({ project: initialProject }) {
                 onCancel={() => setRiskModal(false)}
                 footer={null}
                 title="Adicionar risco"
+                width="60%"
                 centered
                 destroyOnClose
+                className="project-edit-modal"
             >
-                <Form layout="vertical" form={riskForm} onFinish={() => handleAdd('projects.risks.store', riskForm, () => setRiskModal(false))}>
+                <Form
+                    layout="vertical"
+                    form={riskForm}
+                    className="flex flex-col"
+                    onFinish={() => handleAdd('projects.risks.store', riskForm, () => setRiskModal(false))}
+                >
                     <Form.Item label="Título" name="title" rules={[{ required: true }]}>
                         <Input />
                     </Form.Item>
-                    <Form.Item label="Severidade" name="severity" rules={[{ required: true }]}>
+                    <Form.Item
+                        label={
+                            <InfoLabel
+                                text="Severidade"
+                                tooltip="Impacto do risco no projeto."
+                            />
+                        }
+                        name="severity"
+                        rules={[{ required: true }]}
+                    >
                         <Select
                             options={[
                                 { label: 'Baixa', value: 'low' },
@@ -1562,23 +1771,55 @@ export default function Show({ project: initialProject }) {
                             ]}
                         />
                     </Form.Item>
-                    <Form.Item label="Área de impacto" name="impact_area">
+                    <Form.Item
+                        label={
+                            <InfoLabel
+                                text="Área de impacto"
+                                tooltip="Área do projeto mais afetada pelo risco."
+                            />
+                        }
+                        name="impact_area"
+                    >
                         <Input />
                     </Form.Item>
-                    <Form.Item label="Responsável" name="owner">
+                    <Form.Item
+                        label={
+                            <InfoLabel
+                                text="Responsável"
+                                tooltip="Pessoa ou time responsável por acompanhar o risco."
+                            />
+                        }
+                        name="owner"
+                    >
                         <Input />
                     </Form.Item>
-                    <Form.Item label="Mitigação" name="mitigation">
+                    <Form.Item
+                        label={
+                            <InfoLabel
+                                text="Mitigação"
+                                tooltip="Plano ou ação para reduzir o risco."
+                            />
+                        }
+                        name="mitigation"
+                    >
                         <TextArea rows={2} className="resize-none" />
                     </Form.Item>
-                <PrimaryButton
-                    variant="red"
-                    type="submit"
-                    className="!text-white"
-                    loading={loading}
-                >
-                    Salvar
-                </PrimaryButton>
+                    <div className="flex justify-end gap-3">
+                        <PrimaryButton
+                            variant="outlineRed"
+                            onClick={() => setRiskModal(false)}
+                        >
+                            Cancelar
+                        </PrimaryButton>
+                        <PrimaryButton
+                            variant="red"
+                            type="submit"
+                            className="!text-white"
+                            loading={loading}
+                        >
+                            Salvar
+                        </PrimaryButton>
+                    </div>
             </Form>
         </Modal>
 
@@ -1587,14 +1828,39 @@ export default function Show({ project: initialProject }) {
                 onCancel={() => setIntegrationModal(false)}
                 footer={null}
                 title="Adicionar integração"
+                width="60%"
                 centered
                 destroyOnClose
+                className="project-edit-modal"
             >
-                <Form layout="vertical" form={integrationForm} onFinish={() => handleAdd('projects.integrations.store', integrationForm, () => setIntegrationModal(false))}>
-                    <Form.Item label="Tipo" name="type" rules={[{ required: true }]}>
+                <Form
+                    layout="vertical"
+                    form={integrationForm}
+                    className="flex flex-col"
+                    onFinish={() => handleAdd('projects.integrations.store', integrationForm, () => setIntegrationModal(false))}
+                >
+                    <Form.Item
+                        label={
+                            <InfoLabel
+                                text="Tipo"
+                                tooltip="Categoria da integração (ex.: repo, doc, issue)."
+                            />
+                        }
+                        name="type"
+                        rules={[{ required: true }]}
+                    >
                         <Input placeholder="repo, issue, pr, doc" />
                     </Form.Item>
-                    <Form.Item label="Rótulo" name="label" rules={[{ required: true }]}>
+                    <Form.Item
+                        label={
+                            <InfoLabel
+                                text="Rótulo"
+                                tooltip="Nome amigável para a integração."
+                            />
+                        }
+                        name="label"
+                        rules={[{ required: true }]}
+                    >
                         <Input />
                     </Form.Item>
                     <Form.Item label="URL" name="url" rules={[{ required: true, type: 'url' }]}>
@@ -1603,14 +1869,22 @@ export default function Show({ project: initialProject }) {
                     <Form.Item label="Notas" name="notes">
                         <TextArea rows={2} className="resize-none" />
                     </Form.Item>
-                <PrimaryButton
-                    variant="red"
-                    type="submit"
-                    className="!text-white"
-                    loading={loading}
-                >
-                    Salvar
-                </PrimaryButton>
+                    <div className="flex justify-end gap-3">
+                        <PrimaryButton
+                            variant="outlineRed"
+                            onClick={() => setIntegrationModal(false)}
+                        >
+                            Cancelar
+                        </PrimaryButton>
+                        <PrimaryButton
+                            variant="red"
+                            type="submit"
+                            className="!text-white"
+                            loading={loading}
+                        >
+                            Salvar
+                        </PrimaryButton>
+                    </div>
             </Form>
         </Modal>
 
@@ -1619,14 +1893,30 @@ export default function Show({ project: initialProject }) {
                 onCancel={() => setGovModal(false)}
                 footer={null}
                 title="Adicionar regra de governança"
+                width="60%"
                 centered
                 destroyOnClose
+                className="project-edit-modal"
             >
-                <Form layout="vertical" form={govForm} onFinish={() => handleAdd('projects.governance.store', govForm, () => setGovModal(false))}>
+                <Form
+                    layout="vertical"
+                    form={govForm}
+                    className="flex flex-col"
+                    onFinish={() => handleAdd('projects.governance.store', govForm, () => setGovModal(false))}
+                >
                     <Form.Item label="Nome" name="name" rules={[{ required: true }]}>
                         <Input />
                     </Form.Item>
-                    <Form.Item label="Escopo" name="scope" rules={[{ required: true }]}>
+                    <Form.Item
+                        label={
+                            <InfoLabel
+                                text="Escopo"
+                                tooltip="Onde a regra se aplica."
+                            />
+                        }
+                        name="scope"
+                        rules={[{ required: true }]}
+                    >
                         <Select
                             options={[
                                 { label: 'Decisão', value: 'decision' },
@@ -1646,17 +1936,33 @@ export default function Show({ project: initialProject }) {
                     <Form.Item label="Descrição" name="description">
                         <TextArea rows={2} className="resize-none" />
                     </Form.Item>
-                    <Form.Item label="Requisitos" name="requirements">
+                    <Form.Item
+                        label={
+                            <InfoLabel
+                                text="Requisitos"
+                                tooltip="Condições necessárias para cumprir a regra."
+                            />
+                        }
+                        name="requirements"
+                    >
                         <TextArea rows={2} className="resize-none" />
                     </Form.Item>
-                <PrimaryButton
-                    variant="red"
-                    type="submit"
-                    className="!text-white"
-                    loading={loading}
-                >
-                    Salvar
-                </PrimaryButton>
+                    <div className="flex justify-end gap-3">
+                        <PrimaryButton
+                            variant="outlineRed"
+                            onClick={() => setGovModal(false)}
+                        >
+                            Cancelar
+                        </PrimaryButton>
+                        <PrimaryButton
+                            variant="red"
+                            type="submit"
+                            className="!text-white"
+                            loading={loading}
+                        >
+                            Salvar
+                        </PrimaryButton>
+                    </div>
             </Form>
         </Modal>
 
@@ -1665,17 +1971,62 @@ export default function Show({ project: initialProject }) {
                 onCancel={() => setNfrModal(false)}
                 footer={null}
                 title="Adicionar NFR"
+                width="60%"
                 centered
                 destroyOnClose
+                className="project-edit-modal"
             >
-                <Form layout="vertical" form={nfrForm} onFinish={() => handleAdd('projects.nfrs.store', nfrForm, () => setNfrModal(false))}>
-                    <Form.Item label="Categoria" name="category" rules={[{ required: true }]}>
-                        <Input placeholder="performance, security, scalability..." />
+                <Form
+                    layout="vertical"
+                    form={nfrForm}
+                    className="flex flex-col"
+                    onFinish={() => handleAdd('projects.nfrs.store', nfrForm, () => setNfrModal(false))}
+                >
+                    <Form.Item
+                        label={
+                            <InfoLabel
+                                text="Categoria"
+                                tooltip="Tipo do requisito não funcional."
+                            />
+                        }
+                        name="category"
+                        rules={[{ required: true }]}
+                    >
+                        <Select
+                            placeholder="Selecione"
+                            options={[
+                                { label: 'Performance', value: 'performance' },
+                                { label: 'Segurança', value: 'security' },
+                                { label: 'Escalabilidade', value: 'scalability' },
+                                { label: 'Disponibilidade', value: 'availability' },
+                                { label: 'Confiabilidade', value: 'reliability' },
+                                { label: 'Observabilidade', value: 'observability' },
+                                { label: 'Usabilidade', value: 'usability' },
+                                { label: 'Compliance', value: 'compliance' },
+                                { label: 'Outro', value: 'other' },
+                            ]}
+                        />
                     </Form.Item>
-                    <Form.Item label="Métrica" name="metric">
+                    <Form.Item
+                        label={
+                            <InfoLabel
+                                text="Métrica"
+                                tooltip="Como a meta será medida."
+                            />
+                        }
+                        name="metric"
+                    >
                         <Input />
                     </Form.Item>
-                    <Form.Item label="Meta" name="target">
+                    <Form.Item
+                        label={
+                            <InfoLabel
+                                text="Meta"
+                                tooltip="Valor-alvo da métrica."
+                            />
+                        }
+                        name="target"
+                    >
                         <Input />
                     </Form.Item>
                     <Form.Item label="Prioridade" name="priority" rules={[{ required: true }]}>
@@ -1687,20 +2038,44 @@ export default function Show({ project: initialProject }) {
                             ]}
                         />
                     </Form.Item>
-                    <Form.Item label="Racional" name="rationale">
+                    <Form.Item
+                        label={
+                            <InfoLabel
+                                text="Racional"
+                                tooltip="Justificativa do requisito."
+                            />
+                        }
+                        name="rationale"
+                    >
                         <TextArea rows={2} className="resize-none" />
                     </Form.Item>
-                    <Form.Item label="Avaliação atual" name="current_assessment">
+                    <Form.Item
+                        label={
+                            <InfoLabel
+                                text="Avaliação atual"
+                                tooltip="Como está hoje frente à meta."
+                            />
+                        }
+                        name="current_assessment"
+                    >
                         <TextArea rows={2} className="resize-none" />
                     </Form.Item>
-                <PrimaryButton
-                    variant="red"
-                    type="submit"
-                    className="!text-white"
-                    loading={loading}
-                >
-                    Salvar
-                </PrimaryButton>
+                    <div className="flex justify-end gap-3">
+                        <PrimaryButton
+                            variant="outlineRed"
+                            onClick={() => setNfrModal(false)}
+                        >
+                            Cancelar
+                        </PrimaryButton>
+                        <PrimaryButton
+                            variant="red"
+                            type="submit"
+                            className="!text-white"
+                            loading={loading}
+                        >
+                            Salvar
+                        </PrimaryButton>
+                    </div>
             </Form>
         </Modal>
 
@@ -1709,10 +2084,17 @@ export default function Show({ project: initialProject }) {
                 onCancel={() => setDecisionModal(false)}
                 footer={null}
                 title="Adicionar decisão (ADR)"
+                width="60%"
                 centered
                 destroyOnClose
+                className="project-edit-modal"
             >
-                <Form layout="vertical" form={decisionForm} onFinish={() => handleAdd('projects.decisions.store', decisionForm, () => setDecisionModal(false))}>
+                <Form
+                    layout="vertical"
+                    form={decisionForm}
+                    className="flex flex-col"
+                    onFinish={() => handleAdd('projects.decisions.store', decisionForm, () => setDecisionModal(false))}
+                >
                     <Form.Item label="Título" name="title" rules={[{ required: true }]}>
                         <Input />
                     </Form.Item>
@@ -1726,23 +2108,47 @@ export default function Show({ project: initialProject }) {
                             ]}
                         />
                     </Form.Item>
-                    <Form.Item label="Contexto" name="context">
+                    <Form.Item
+                        label={
+                            <InfoLabel
+                                text="Contexto"
+                                tooltip="Cenário que motivou a decisão."
+                            />
+                        }
+                        name="context"
+                    >
                         <TextArea rows={2} className="resize-none" />
                     </Form.Item>
                     <Form.Item label="Decisão" name="decision">
                         <TextArea rows={2} className="resize-none" />
                     </Form.Item>
-                    <Form.Item label="Consequências" name="consequences">
+                    <Form.Item
+                        label={
+                            <InfoLabel
+                                text="Consequências"
+                                tooltip="Impactos e trade-offs esperados."
+                            />
+                        }
+                        name="consequences"
+                    >
                         <TextArea rows={2} className="resize-none" />
                     </Form.Item>
-                <PrimaryButton
-                    variant="red"
-                    type="submit"
-                    className="!text-white"
-                    loading={loading}
-                >
-                    Salvar
-                </PrimaryButton>
+                    <div className="flex justify-end gap-3">
+                        <PrimaryButton
+                            variant="outlineRed"
+                            onClick={() => setDecisionModal(false)}
+                        >
+                            Cancelar
+                        </PrimaryButton>
+                        <PrimaryButton
+                            variant="red"
+                            type="submit"
+                            className="!text-white"
+                            loading={loading}
+                        >
+                            Salvar
+                        </PrimaryButton>
+                    </div>
             </Form>
         </Modal>
         </AuthenticatedLayout>

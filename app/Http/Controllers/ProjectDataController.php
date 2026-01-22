@@ -41,8 +41,31 @@ class ProjectDataController extends Controller
             'version' => ['nullable', 'string', 'max:60'],
             'rationale' => ['nullable', 'string'],
             'status' => ['required', 'string', 'in:chosen,evaluating,deprecated'],
+            'vendor_url' => ['nullable', 'string', 'max:255'],
+            'constraints' => ['nullable', 'string'],
         ]);
         $project->techStackItems()->create($data);
+
+        return $this->freshProject($project);
+    }
+
+    public function updateTechStack(Project $project, TechStackItem $stackItem, Request $request)
+    {
+        $this->assertProjectAccess($project);
+
+        abort_unless($stackItem->project_id === $project->id, 404);
+
+        $data = $request->validate([
+            'category' => ['required', 'string', 'max:120'],
+            'name' => ['required', 'string', 'max:180'],
+            'version' => ['nullable', 'string', 'max:60'],
+            'rationale' => ['nullable', 'string'],
+            'status' => ['required', 'string', 'in:chosen,evaluating,deprecated'],
+            'vendor_url' => ['nullable', 'string', 'max:255'],
+            'constraints' => ['nullable', 'string'],
+        ]);
+
+        $stackItem->update($data);
 
         return $this->freshProject($project);
     }

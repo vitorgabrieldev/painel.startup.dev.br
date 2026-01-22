@@ -217,7 +217,7 @@ export default function Index({ projects = [] }) {
                                     placeholder="Buscar por título, descrição, público-alvo..."
                                     className="flex-1"
                                     variant="borderless"
-                                    showArrow={false}
+                                    suffixIcon={null}
                                     onSearch={(value) => setSearchInput(value)}
                                     onChange={handleTagsChange}
                                     onInputKeyDown={(event) => {

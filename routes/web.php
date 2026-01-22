@@ -59,6 +59,7 @@ Route::middleware(['auth'])->group(function () {
 
     Route::patch('/projects/{project}', [ProjectDataController::class, 'updateProject'])->name('projects.update');
     Route::post('/projects/{project}/stack', [ProjectDataController::class, 'addTechStack'])->name('projects.stack.store');
+    Route::patch('/projects/{project}/stack/{stackItem}', [ProjectDataController::class, 'updateTechStack'])->name('projects.stack.update');
     Route::post('/projects/{project}/patterns', [ProjectDataController::class, 'addPattern'])->name('projects.patterns.store');
     Route::post('/projects/{project}/risks', [ProjectDataController::class, 'addRisk'])->name('projects.risks.store');
     Route::post('/projects/{project}/integrations', [ProjectDataController::class, 'addIntegration'])->name('projects.integrations.store');

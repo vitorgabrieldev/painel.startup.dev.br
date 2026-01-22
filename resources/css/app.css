@@ -130,6 +130,24 @@ html {
     overflow-y: visible;
 }
 
+.project-list .ant-list-item {
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+}
+
+.project-list .ant-list-item > .ant-list-item-meta,
+.project-list .ant-list-item > div {
+    width: 100%;
+}
+
+.project-list-spaced .ant-list-items > .ant-list-item {
+    margin-bottom: 12px;
+}
+
+.project-list-spaced .ant-list-items > .ant-list-item:last-child {
+    margin-bottom: 0;
+}
+
 textarea {
     resize: none !important;
 }
