@@ -261,7 +261,7 @@ export default function Landing({ canLogin, canRegister }) {
                                 return (
                                     <div
                                         key={item.text}
-                                        className="flex items-start gap-3 rounded-xl border border-white/10 bg-black/30 px-4 py-3"
+                                        className="flex items-center gap-3 rounded-xl border border-white/10 bg-black/30 px-4 py-3"
                                     >
                                         <span className="mt-0.5 inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/10 text-[var(--color-primary)]">
                                             <Icon className="h-4 w-4" />

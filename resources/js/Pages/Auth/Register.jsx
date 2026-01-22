@@ -72,20 +72,20 @@ export default function Register() {
                         </div>
 
                         <div className="grid gap-3">
-                            <button
-                                type="button"
+                            <a
+                                href={route('oauth.google.redirect')}
                                 className="flex w-full items-center justify-center gap-3 rounded-lg border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-semibold text-white transition hover:border-white/30"
                             >
                                 <SiGoogle className="h-4 w-4" />
                                 Continuar com Google
-                            </button>
-                            <button
-                                type="button"
+                            </a>
+                            <a
+                                href={route('oauth.github.redirect')}
                                 className="flex w-full items-center justify-center gap-3 rounded-lg border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-semibold text-white transition hover:border-white/30"
                             >
                                 <SiGithub className="h-4 w-4" />
                                 Continuar com GitHub
-                            </button>
+                            </a>
                         </div>
 
                         <div className="flex items-center gap-3">

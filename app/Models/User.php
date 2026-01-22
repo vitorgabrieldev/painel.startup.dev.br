@@ -23,6 +23,11 @@ class User extends Authenticatable
         'email',
         'cpf',
         'password',
+        'github_id',
+        'github_username',
+        'github_avatar',
+        'google_id',
+        'google_avatar',
     ];
 
     /**

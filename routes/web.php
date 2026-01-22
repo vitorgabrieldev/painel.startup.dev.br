@@ -6,6 +6,8 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ProjectChatController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\ProjectDataController;
+use App\Http\Controllers\Auth\GithubController;
+use App\Http\Controllers\Auth\GoogleController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -21,6 +23,17 @@ Route::get('/', function () {
         'canLogin' => Route::has('login'),
         'canRegister' => Route::has('register'),
     ]);
+});
+
+Route::middleware('guest')->group(function () {
+    Route::get('/auth/github/redirect', [GithubController::class, 'redirect'])
+        ->name('oauth.github.redirect');
+    Route::get('/auth/github/callback', [GithubController::class, 'callback'])
+        ->name('oauth.github.callback');
+    Route::get('/auth/google/redirect', [GoogleController::class, 'redirect'])
+        ->name('oauth.google.redirect');
+    Route::get('/auth/google/callback', [GoogleController::class, 'callback'])
+        ->name('oauth.google.callback');
 });
 
 Route::middleware(['auth'])->group(function () {

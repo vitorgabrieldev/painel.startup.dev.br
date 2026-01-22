@@ -21,6 +21,8 @@ class ProfileController extends Controller
         return Inertia::render('Profile/Edit', [
             'mustVerifyEmail' => $request->user() instanceof MustVerifyEmail,
             'status' => session('status'),
+            'isSocialUser' => !empty($request->user()->github_id)
+                || !empty($request->user()->google_id),
         ]);
     }
 
