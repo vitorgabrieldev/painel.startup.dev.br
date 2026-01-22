@@ -10,8 +10,9 @@ class ProfileUpdateRequest extends FormRequest
 {
     protected function prepareForValidation(): void
     {
+        $cpf = preg_replace('/\D/', '', (string) $this->cpf);
         $this->merge([
-            'cpf' => preg_replace('/\D/', '', (string) $this->cpf),
+            'cpf' => $cpf !== '' ? $cpf : null,
         ]);
     }
 
@@ -40,12 +41,12 @@ class ProfileUpdateRequest extends FormRequest
                 Rule::unique(User::class)->ignore($this->user()->id),
             ],
             'cpf' => [
-                'required',
+                'nullable',
                 'string',
                 'size:11',
                 Rule::unique(User::class)->ignore($this->user()->id),
                 function (string $attribute, string $value, callable $fail) {
-                    if (!$this->isValidCpf($value)) {
+                    if ($value !== '' && !$this->isValidCpf($value)) {
                         $fail('CPF inválido.');
                     }
                 },

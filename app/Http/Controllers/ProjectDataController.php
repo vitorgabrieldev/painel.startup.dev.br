@@ -11,6 +11,7 @@ use App\Models\Project;
 use App\Models\Risk;
 use App\Models\TechStackItem;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 
 class ProjectDataController extends Controller
 {
@@ -132,6 +133,33 @@ class ProjectDataController extends Controller
             'decision' => ['nullable', 'string'],
         ]);
         $project->decisionRecords()->create($data);
+
+        return $this->freshProject($project);
+    }
+
+    public function updateAvatar(Project $project, Request $request)
+    {
+        $this->assertProjectAccess($project);
+
+        $validated = $request->validate([
+            'avatar' => ['nullable', 'image', 'max:2048'],
+            'avatar_remove' => ['nullable', 'boolean'],
+        ]);
+
+        if (!empty($validated['avatar_remove']) && $project->avatar_path) {
+            Storage::disk('public')->delete($project->avatar_path);
+            $project->avatar_path = null;
+        }
+
+        if ($request->hasFile('avatar')) {
+            if ($project->avatar_path) {
+                Storage::disk('public')->delete($project->avatar_path);
+            }
+            $path = $request->file('avatar')->store('project-avatars', 'public');
+            $project->avatar_path = $path;
+        }
+
+        $project->save();
 
         return $this->freshProject($project);
     }

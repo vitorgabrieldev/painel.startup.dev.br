@@ -23,6 +23,7 @@ class User extends Authenticatable
         'email',
         'cpf',
         'password',
+        'avatar_path',
         'github_id',
         'github_username',
         'github_avatar',
@@ -41,6 +42,15 @@ class User extends Authenticatable
     ];
 
     /**
+     * Accessors to include in array/JSON serialization.
+     *
+     * @var list<string>
+     */
+    protected $appends = [
+        'avatar_url',
+    ];
+
+    /**
      * Get the attributes that should be cast.
      *
      * @return array<string, string>
@@ -51,5 +61,22 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
         ];
+    }
+
+    public function getAvatarUrlAttribute(): ?string
+    {
+        if ($this->avatar_path) {
+            return \Illuminate\Support\Facades\Storage::url($this->avatar_path);
+        }
+
+        if ($this->google_avatar) {
+            return $this->google_avatar;
+        }
+
+        if ($this->github_avatar) {
+            return $this->github_avatar;
+        }
+
+        return null;
     }
 }

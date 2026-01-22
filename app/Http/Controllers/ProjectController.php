@@ -20,6 +20,8 @@ class ProjectController extends Controller
             'target_users',
             'status',
             'created_at',
+            'updated_at',
+            'avatar_path',
         ])
             ->whereHas('members', function ($query) {
                 $query->where('user_id', auth()->id());

@@ -4,6 +4,7 @@ import { Head, Link } from '@inertiajs/react';
 import axios from 'axios';
 import { useEffect, useMemo, useState } from 'react';
 import {
+    Button,
     Form,
     Input,
     Modal,
@@ -15,18 +16,23 @@ import {
 } from 'antd';
 import {
     FiAlertTriangle,
+    FiArrowDown,
+    FiArrowUp,
     FiClipboard,
+    FiClock,
     FiEdit2,
     FiFileText,
     FiGitBranch,
     FiHome,
     FiLayers,
     FiLink,
+    FiSearch,
     FiShield,
     FiCheckSquare,
 } from 'react-icons/fi';
 
 const { TextArea } = Input;
+const SEARCH_HISTORY_KEY = 'project.module.search.history';
 
 const Section = ({ title, titleTooltip, action, children, subtitle }) => (
     <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
@@ -53,6 +59,15 @@ const Section = ({ title, titleTooltip, action, children, subtitle }) => (
         </div>
         <div className="text-sm text-gray-700">{children}</div>
     </section>
+);
+
+const EmptyState = ({ icon: Icon, message = 'Não há nada aqui : \\' }) => (
+    <div className="flex min-h-[180px] flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-gray-200 bg-gray-50/60 px-4 text-center">
+        <span className="rounded-lg bg-red-500/10 p-3 text-red-500">
+            <Icon className="h-6 w-6" />
+        </span>
+        <p className="text-sm font-medium text-gray-500">{message}</p>
+    </div>
 );
 
 const statusLabel = (status) => {
@@ -132,6 +147,8 @@ export default function Show({ project: initialProject }) {
     const [project, setProject] = useState(initialProject);
     const [loading, setLoading] = useState(false);
     const [messageApi, contextHolder] = message.useMessage();
+    const [avatarPreview, setAvatarPreview] = useState(null);
+    const [avatarProcessing, setAvatarProcessing] = useState(false);
 
     const [editingOverview, setEditingOverview] = useState(false);
     const [overviewForm] = Form.useForm();
@@ -157,16 +174,43 @@ export default function Show({ project: initialProject }) {
     const [decisionModal, setDecisionModal] = useState(false);
     const [decisionForm] = Form.useForm();
     const [activeTab, setActiveTab] = useState('overview');
-    const [searchFilters, setSearchFilters] = useState({
-        stack: '',
-        patterns: '',
-        risks: '',
-        integrations: '',
-        governance: '',
-        nfrs: '',
-        decisions: '',
+    const [tagFilters, setTagFilters] = useState({
+        stack: [],
+        patterns: [],
+        risks: [],
+        integrations: [],
+        governance: [],
+        nfrs: [],
+        decisions: [],
     });
-    const [statusFilters, setStatusFilters] = useState({
+    const [searchHistory, setSearchHistory] = useState({
+        stack: [],
+        patterns: [],
+        risks: [],
+        integrations: [],
+        governance: [],
+        nfrs: [],
+        decisions: [],
+    });
+    const [sortBy, setSortBy] = useState({
+        stack: 'title',
+        patterns: 'title',
+        risks: 'title',
+        integrations: 'title',
+        governance: 'title',
+        nfrs: 'title',
+        decisions: 'title',
+    });
+    const [sortDirection, setSortDirection] = useState({
+        stack: 'asc',
+        patterns: 'asc',
+        risks: 'asc',
+        integrations: 'asc',
+        governance: 'asc',
+        nfrs: 'asc',
+        decisions: 'asc',
+    });
+    const [statusFilters] = useState({
         stack: '',
         patterns: '',
         governance: '',
@@ -183,6 +227,63 @@ export default function Show({ project: initialProject }) {
             target_users: toPlainText(initialProject.target_users),
         });
     }, [initialProject, overviewForm]);
+
+    useEffect(() => {
+        try {
+            const stored = localStorage.getItem(SEARCH_HISTORY_KEY);
+            if (!stored) return;
+            const parsed = JSON.parse(stored);
+            if (parsed && typeof parsed === 'object') {
+                setSearchHistory((prev) => ({
+                    ...prev,
+                    ...parsed,
+                }));
+            }
+        } catch (error) {
+            // ignore storage errors
+        }
+    }, []);
+
+    useEffect(() => {
+        try {
+            localStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(searchHistory));
+        } catch (error) {
+            // ignore storage errors
+        }
+    }, [searchHistory]);
+
+    const avatarUrl = useMemo(() => {
+        if (avatarPreview) return avatarPreview;
+        if (!project.avatar_url) return null;
+        return `${project.avatar_url}?v=${project.updated_at || project.id}`;
+    }, [avatarPreview, project]);
+
+    const projectInitial =
+        (project.name || '').trim().charAt(0).toUpperCase() || '?';
+
+    const handleProjectAvatar = async (file) => {
+        if (!file) return;
+        if (avatarPreview) {
+            URL.revokeObjectURL(avatarPreview);
+        }
+        setAvatarPreview(URL.createObjectURL(file));
+        setAvatarProcessing(true);
+        try {
+            const formData = new FormData();
+            formData.append('avatar', file);
+            const { data } = await axios.post(
+                route('projects.avatar.update', project.id),
+                formData,
+                { headers: { 'Content-Type': 'multipart/form-data' } },
+            );
+            setProject(data);
+            messageApi.success('Avatar atualizado.');
+        } catch (error) {
+            messageApi.error('Erro ao atualizar avatar.');
+        } finally {
+            setAvatarProcessing(false);
+        }
+    };
 
     const renderPlainValue = (value, fallback) => {
         const parsed = parseMaybeJson(value);
@@ -337,24 +438,263 @@ export default function Show({ project: initialProject }) {
     const nfrs = useMemo(() => project.non_functional_requirements || [], [project.non_functional_requirements]);
     const decisions = useMemo(() => project.decision_records || [], [project.decision_records]);
 
-    const filterList = (list, key = 'name', moduleKey = '', statusKey = 'status') =>
-        list.filter((item) => {
-            const text = (item[key] || item.title || '').toLowerCase();
-            const searchTerm = (searchFilters[moduleKey] || '').toLowerCase();
-            const match = text.includes(searchTerm);
-            const statusFilter = statusFilters[moduleKey] || '';
-            const statusValue = (item[statusKey] || '').toLowerCase();
-            const statusMatch = statusFilter ? statusValue === statusFilter.toLowerCase() : true;
-            return match && statusMatch;
+    const normalizeSearchText = (value) =>
+        String(value || '')
+            .toLowerCase()
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '');
+
+    const getModuleTitleKey = (moduleKey) => {
+        switch (moduleKey) {
+            case 'risks':
+                return 'title';
+            case 'integrations':
+                return 'label';
+            case 'nfrs':
+                return 'category';
+            default:
+                return 'name';
+        }
+    };
+
+    const getModuleSearchText = (moduleKey, item) => {
+        if (!item) return '';
+        const values = [];
+        switch (moduleKey) {
+            case 'stack':
+                values.push(
+                    item.name,
+                    item.category,
+                    item.version,
+                    item.rationale,
+                    item.constraints,
+                    item.vendor_url,
+                    item.status,
+                );
+                break;
+            case 'patterns':
+                values.push(
+                    item.name,
+                    item.rationale,
+                    item.references,
+                    item.constraints,
+                    item.status,
+                );
+                break;
+            case 'risks':
+                values.push(
+                    item.title,
+                    item.severity,
+                    item.likelihood,
+                    item.impact_area,
+                    item.owner,
+                    item.mitigation,
+                );
+                break;
+            case 'integrations':
+                values.push(item.label, item.type, item.url, item.notes);
+                break;
+            case 'governance':
+                values.push(
+                    item.name,
+                    item.scope,
+                    item.description,
+                    item.requirements,
+                    item.status,
+                );
+                break;
+            case 'nfrs':
+                values.push(
+                    item.category,
+                    item.metric,
+                    item.target,
+                    item.priority,
+                    item.rationale,
+                    item.current_assessment,
+                );
+                break;
+            case 'decisions':
+                values.push(
+                    item.title,
+                    item.status,
+                    item.context,
+                    item.decision,
+                    item.consequences,
+                );
+                break;
+            default:
+                values.push(item.name, item.title);
+        }
+        return normalizeSearchText(values.filter(Boolean).join(' '));
+    };
+
+    const filterAndSort = (list, moduleKey, statusKey = 'status') => {
+        const tags = (tagFilters[moduleKey] || [])
+            .map((tag) => normalizeSearchText(tag.trim()))
+            .filter((tag) => tag.length >= 3);
+
+        const statusFilter = statusFilters[moduleKey] || '';
+
+        const filtered = list.filter((item) => {
+            const text = getModuleSearchText(moduleKey, item);
+            const tagsMatch = tags.length
+                ? tags.every((tag) => text.includes(tag))
+                : true;
+            const statusValue = normalizeSearchText(item[statusKey] || '');
+            const statusMatch = statusFilter
+                ? statusValue === normalizeSearchText(statusFilter)
+                : true;
+            return tagsMatch && statusMatch;
         });
+
+        const direction = sortDirection[moduleKey] === 'asc' ? 1 : -1;
+        const sortField = sortBy[moduleKey] || 'title';
+        const titleKey = getModuleTitleKey(moduleKey);
+
+        return [...filtered].sort((a, b) => {
+            if (sortField === 'title') {
+                const aTitle = String(a[titleKey] || '').toLowerCase();
+                const bTitle = String(b[titleKey] || '').toLowerCase();
+                return aTitle.localeCompare(bTitle, 'pt-BR') * direction;
+            }
+            const aDate = new Date(a[sortField] || 0).getTime();
+            const bDate = new Date(b[sortField] || 0).getTime();
+            return (aDate - bDate) * direction;
+        });
+    };
+
+    const updateHistory = (moduleKey, tags) => {
+        const trimmed = tags
+            .map((tag) => tag.trim())
+            .filter((tag) => tag.length >= 3);
+        if (!trimmed.length) return;
+        setSearchHistory((prev) => {
+            const next = [...trimmed, ...(prev[moduleKey] || [])];
+            return {
+                ...prev,
+                [moduleKey]: [...new Set(next)].slice(0, 12),
+            };
+        });
+    };
+
+    const SearchSortBar = ({ moduleKey, placeholder }) => (
+        <div className="mb-3 flex flex-wrap items-center gap-3">
+            <div className="flex min-w-[280px] flex-1 items-center gap-2 rounded-md border border-gray-200 bg-white px-3 py-2 shadow-sm">
+                <Tooltip title="Histórico de busca">
+                    <button
+                        type="button"
+                        className="flex h-8 w-8 items-center justify-center rounded-md border border-gray-100 text-gray-500 transition hover:text-[var(--color-secondary)]"
+                    >
+                        <FiClock className="h-4 w-4" />
+                    </button>
+                </Tooltip>
+                <Select
+                    mode="tags"
+                    value={tagFilters[moduleKey]}
+                    options={(searchHistory[moduleKey] || []).map((item) => ({
+                        value: item,
+                        label: item,
+                    }))}
+                    placeholder={placeholder}
+                    className="flex-1"
+                    variant="borderless"
+                    showArrow={false}
+                    onChange={(value) => {
+                        setTagFilters((prev) => ({ ...prev, [moduleKey]: value }));
+                        updateHistory(moduleKey, value);
+                    }}
+                    maxTagCount="responsive"
+                />
+                <Tooltip title="Buscar">
+                    <Button
+                        type="text"
+                        className="flex h-8 w-8 items-center justify-center"
+                        icon={<FiSearch />}
+                    />
+                </Tooltip>
+            </div>
+
+            <div className="flex items-center gap-2 rounded-md border border-gray-200 bg-white px-2 py-2 shadow-sm">
+                <Tooltip title="Ordenar por">
+                    <Select
+                        value={sortBy[moduleKey]}
+                        options={[
+                            { label: 'Título', value: 'title' },
+                            { label: 'Criado em', value: 'created_at' },
+                            { label: 'Atualizado em', value: 'updated_at' },
+                        ]}
+                        onChange={(value) =>
+                            setSortBy((prev) => ({ ...prev, [moduleKey]: value }))
+                        }
+                        className="min-w-[170px]"
+                        variant="borderless"
+                    />
+                </Tooltip>
+                <Tooltip
+                    title={
+                        sortDirection[moduleKey] === 'asc'
+                            ? 'Crescente'
+                            : 'Decrescente'
+                    }
+                >
+                    <button
+                        type="button"
+                        onClick={() =>
+                            setSortDirection((prev) => ({
+                                ...prev,
+                                [moduleKey]:
+                                    prev[moduleKey] === 'asc' ? 'desc' : 'asc',
+                            }))
+                        }
+                        className="flex h-9 w-9 items-center justify-center rounded-md border border-gray-100 text-gray-600 transition hover:text-[var(--color-secondary)]"
+                    >
+                        {sortDirection[moduleKey] === 'asc' ? (
+                            <FiArrowUp className="h-4 w-4" />
+                        ) : (
+                            <FiArrowDown className="h-4 w-4" />
+                        )}
+                    </button>
+                </Tooltip>
+            </div>
+        </div>
+    );
 
     return (
         <AuthenticatedLayout
             header={
-                <div className="flex flex-col gap-1">
-                    <h2 className="text-xl font-semibold leading-tight text-gray-900">
-                        {project.name}
-                    </h2>
+                <div className="flex flex-wrap items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                        <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-lg border border-gray-200 bg-[var(--color-surface-2)] text-sm font-semibold text-[var(--color-dark)]">
+                            {avatarUrl ? (
+                                <img
+                                    src={avatarUrl}
+                                    alt={`Avatar do projeto ${project.name}`}
+                                    className="h-full w-full object-cover"
+                                />
+                            ) : (
+                                <span>{projectInitial}</span>
+                            )}
+                        </div>
+                        <div className="flex flex-col gap-1">
+                            <h2 className="text-xl font-semibold leading-tight text-gray-900">
+                                {project.name}
+                            </h2>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                        <label className="cursor-pointer rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-600 transition hover:border-[var(--color-secondary)] hover:text-[var(--color-secondary)]">
+                            {avatarProcessing ? 'Enviando...' : 'Trocar avatar'}
+                            <input
+                                type="file"
+                                accept="image/*"
+                                disabled={avatarProcessing}
+                                className="hidden"
+                                onChange={(event) =>
+                                    handleProjectAvatar(event.target.files?.[0])
+                                }
+                            />
+                        </label>
+                    </div>
                 </div>
             }
         >
@@ -396,7 +736,9 @@ export default function Show({ project: initialProject }) {
                                     label: (
                                         <Tooltip title="Resumo do projeto, propósito e escopo">
                                             <span className="project-tab-label flex items-center gap-2">
-                                                <FiFileText className="h-4 w-4 text-[var(--color-primary)]" />
+                                                <span className="rounded-lg bg-red-500/15 p-2 text-red-600">
+                                                    <FiFileText className="h-4 w-4" />
+                                                </span>
                                                 <span>Sobre/Escopo</span>
                                             </span>
                                         </Tooltip>
@@ -449,7 +791,9 @@ export default function Show({ project: initialProject }) {
                                     label: (
                                         <Tooltip title="Linguagens, frameworks, bancos e infra">
                                             <span className="project-tab-label flex items-center gap-2">
-                                                <FiLayers className="h-4 w-4 text-[var(--color-primary)]" />
+                                                <span className="rounded-lg bg-red-500/15 p-2 text-red-600">
+                                                    <FiLayers className="h-4 w-4" />
+                                                </span>
                                                 <span>Stack técnica</span>
                                             </span>
                                         </Tooltip>
@@ -472,41 +816,14 @@ export default function Show({ project: initialProject }) {
                                             }
                                             subtitle="Linguagens, frameworks, bancos, infra e ferramentas."
                                         >
-                                            <div className="mb-3 flex flex-wrap gap-2">
-                                                <Input.Search
-                                                    allowClear
-                                                    placeholder="Buscar stack..."
-                                                    className="max-w-xs"
-                                                    value={searchFilters.stack}
-                                                    onChange={(e) =>
-                                                        setSearchFilters((prev) => ({
-                                                            ...prev,
-                                                            stack: e.target.value,
-                                                        }))
-                                                    }
-                                                />
-                                                <Select
-                                                    allowClear
-                                                    placeholder="Status"
-                                                    className="w-40"
-                                                    value={statusFilters.stack || undefined}
-                                                    onChange={(v) =>
-                                                        setStatusFilters((prev) => ({
-                                                            ...prev,
-                                                            stack: v || '',
-                                                        }))
-                                                    }
-                                                    options={[
-                                                        { label: 'Selecionada', value: 'chosen' },
-                                                        { label: 'Avaliando', value: 'evaluating' },
-                                                        { label: 'Depreciada', value: 'deprecated' },
-                                                    ]}
-                                                />
-                                            </div>
-                                            {filterList(stacks, 'name', 'stack').length ? (
+                                            <SearchSortBar
+                                                moduleKey="stack"
+                                                placeholder="Buscar stack"
+                                            />
+                                            {filterAndSort(stacks, 'stack').length ? (
                                                 <List
                                                     size="small"
-                                                    dataSource={filterList(stacks, 'name', 'stack')}
+                                                    dataSource={filterAndSort(stacks, 'stack')}
                                                     renderItem={(item) => (
                                                         <List.Item
                                                             className="!w-full p-0"
@@ -555,7 +872,7 @@ export default function Show({ project: initialProject }) {
                                                     )}
                                                 />
                                             ) : (
-                                                <p>Sem itens de stack.</p>
+                                                <EmptyState icon={FiLayers} />
                                             )}
                                         </Section>
                                     ),
@@ -565,7 +882,9 @@ export default function Show({ project: initialProject }) {
                                     label: (
                                         <Tooltip title="Padrões de arquitetura adotados">
                                             <span className="project-tab-label flex items-center gap-2">
-                                                <FiGitBranch className="h-4 w-4 text-[var(--color-primary)]" />
+                                                <span className="rounded-lg bg-red-500/15 p-2 text-red-600">
+                                                    <FiGitBranch className="h-4 w-4" />
+                                                </span>
                                                 <span>Padrões</span>
                                             </span>
                                         </Tooltip>
@@ -588,41 +907,14 @@ export default function Show({ project: initialProject }) {
                                             }
                                             subtitle="Padrões arquiteturais e estado de adoção."
                                         >
-                                            <div className="mb-3 flex flex-wrap gap-2">
-                                                <Input.Search
-                                                    allowClear
-                                                    placeholder="Buscar padrão..."
-                                                    className="max-w-xs"
-                                                    value={searchFilters.patterns}
-                                                    onChange={(e) =>
-                                                        setSearchFilters((prev) => ({
-                                                            ...prev,
-                                                            patterns: e.target.value,
-                                                        }))
-                                                    }
-                                                />
-                                                <Select
-                                                    allowClear
-                                                    placeholder="Status"
-                                                    className="w-40"
-                                                    value={statusFilters.patterns || undefined}
-                                                    onChange={(v) =>
-                                                        setStatusFilters((prev) => ({
-                                                            ...prev,
-                                                            patterns: v || '',
-                                                        }))
-                                                    }
-                                                    options={[
-                                                        { label: 'Adotado', value: 'adopted' },
-                                                        { label: 'Avaliando', value: 'evaluating' },
-                                                        { label: 'Depreciado', value: 'deprecated' },
-                                                    ]}
-                                                />
-                                            </div>
-                                            {filterList(patterns, 'name', 'patterns').length ? (
+                                            <SearchSortBar
+                                                moduleKey="patterns"
+                                                placeholder="Buscar padrões"
+                                            />
+                                            {filterAndSort(patterns, 'patterns').length ? (
                                                 <List
                                                     size="small"
-                                                    dataSource={filterList(patterns, 'name', 'patterns')}
+                                                    dataSource={filterAndSort(patterns, 'patterns')}
                                                     renderItem={(pattern) => (
                                                         <List.Item
                                                             className="!w-full p-0"
@@ -668,7 +960,7 @@ export default function Show({ project: initialProject }) {
                                                     )}
                                                 />
                                             ) : (
-                                                <p>Sem padrões cadastrados.</p>
+                                                <EmptyState icon={FiGitBranch} />
                                             )}
                                         </Section>
                                     ),
@@ -678,7 +970,9 @@ export default function Show({ project: initialProject }) {
                                     label: (
                                         <Tooltip title="Riscos, impacto e mitigação">
                                             <span className="project-tab-label flex items-center gap-2">
-                                                <FiAlertTriangle className="h-4 w-4 text-[var(--color-primary)]" />
+                                                <span className="rounded-lg bg-red-500/15 p-2 text-red-600">
+                                                    <FiAlertTriangle className="h-4 w-4" />
+                                                </span>
                                                 <span>Riscos</span>
                                             </span>
                                         </Tooltip>
@@ -701,24 +995,14 @@ export default function Show({ project: initialProject }) {
                                             }
                                             subtitle="Mapa de riscos, impactos e mitigação."
                                         >
-                                            <div className="mb-3 flex flex-wrap gap-2">
-                                                <Input.Search
-                                                    allowClear
-                                                    placeholder="Buscar risco..."
-                                                    className="max-w-xs"
-                                                    value={searchFilters.risks}
-                                                    onChange={(e) =>
-                                                        setSearchFilters((prev) => ({
-                                                            ...prev,
-                                                            risks: e.target.value,
-                                                        }))
-                                                    }
-                                                />
-                                            </div>
-                                            {filterList(risks, 'title', 'risks').length ? (
+                                            <SearchSortBar
+                                                moduleKey="risks"
+                                                placeholder="Buscar riscos"
+                                            />
+                                            {filterAndSort(risks, 'risks').length ? (
                                                 <List
                                                     size="small"
-                                                    dataSource={filterList(risks, 'title', 'risks')}
+                                                    dataSource={filterAndSort(risks, 'risks')}
                                                     renderItem={(risk) => (
                                                         <List.Item
                                                             className="!w-full p-0"
@@ -761,7 +1045,7 @@ export default function Show({ project: initialProject }) {
                                                     )}
                                                 />
                                             ) : (
-                                                <p>Sem riscos listados.</p>
+                                                <EmptyState icon={FiAlertTriangle} />
                                             )}
                                         </Section>
                                     ),
@@ -771,7 +1055,9 @@ export default function Show({ project: initialProject }) {
                                     label: (
                                         <Tooltip title="Integrações, links e ferramentas externas">
                                             <span className="project-tab-label flex items-center gap-2">
-                                                <FiLink className="h-4 w-4 text-[var(--color-primary)]" />
+                                                <span className="rounded-lg bg-red-500/15 p-2 text-red-600">
+                                                    <FiLink className="h-4 w-4" />
+                                                </span>
                                                 <span>Integrações</span>
                                             </span>
                                         </Tooltip>
@@ -794,24 +1080,14 @@ export default function Show({ project: initialProject }) {
                                             }
                                             subtitle="Links para repositórios, issues, PRs e docs."
                                         >
-                                            <div className="mb-3 flex flex-wrap gap-2">
-                                                <Input.Search
-                                                    allowClear
-                                                    placeholder="Buscar integração..."
-                                                    className="max-w-xs"
-                                                    value={searchFilters.integrations}
-                                                    onChange={(e) =>
-                                                        setSearchFilters((prev) => ({
-                                                            ...prev,
-                                                            integrations: e.target.value,
-                                                        }))
-                                                    }
-                                                />
-                                            </div>
-                                            {filterList(integrations, 'label', 'integrations').length ? (
+                                            <SearchSortBar
+                                                moduleKey="integrations"
+                                                placeholder="Buscar integrações"
+                                            />
+                                            {filterAndSort(integrations, 'integrations').length ? (
                                                 <List
                                                     size="small"
-                                                    dataSource={filterList(integrations, 'label', 'integrations')}
+                                                    dataSource={filterAndSort(integrations, 'integrations')}
                                                     renderItem={(link) => (
                                                         <List.Item
                                                             className="!w-full p-0"
@@ -850,7 +1126,7 @@ export default function Show({ project: initialProject }) {
                                                     )}
                                                 />
                                             ) : (
-                                                <p>Sem integrações.</p>
+                                                <EmptyState icon={FiLink} />
                                             )}
                                         </Section>
                                     ),
@@ -860,7 +1136,9 @@ export default function Show({ project: initialProject }) {
                                     label: (
                                         <Tooltip title="Regras, aprovações e processos">
                                             <span className="project-tab-label flex items-center gap-2">
-                                                <FiShield className="h-4 w-4 text-[var(--color-primary)]" />
+                                                <span className="rounded-lg bg-red-500/15 p-2 text-red-600">
+                                                    <FiShield className="h-4 w-4" />
+                                                </span>
                                                 <span>Governança</span>
                                             </span>
                                         </Tooltip>
@@ -883,40 +1161,14 @@ export default function Show({ project: initialProject }) {
                                             }
                                             subtitle="Regras de aprovação, processo e acesso."
                                         >
-                                            <div className="mb-3 flex flex-wrap gap-2">
-                                                <Input.Search
-                                                    allowClear
-                                                    placeholder="Buscar regra..."
-                                                    className="max-w-xs"
-                                                    value={searchFilters.governance}
-                                                    onChange={(e) =>
-                                                        setSearchFilters((prev) => ({
-                                                            ...prev,
-                                                            governance: e.target.value,
-                                                        }))
-                                                    }
-                                                />
-                                                <Select
-                                                    allowClear
-                                                    placeholder="Status"
-                                                    className="w-40"
-                                                    value={statusFilters.governance || undefined}
-                                                    onChange={(v) =>
-                                                        setStatusFilters((prev) => ({
-                                                            ...prev,
-                                                            governance: v || '',
-                                                        }))
-                                                    }
-                                                    options={[
-                                                        { label: 'Ativa', value: 'active' },
-                                                        { label: 'Inativa', value: 'inactive' },
-                                                    ]}
-                                                />
-                                            </div>
-                                            {filterList(governance, 'name', 'governance').length ? (
+                                            <SearchSortBar
+                                                moduleKey="governance"
+                                                placeholder="Buscar regras"
+                                            />
+                                            {filterAndSort(governance, 'governance').length ? (
                                                 <List
                                                     size="small"
-                                                    dataSource={filterList(governance, 'name', 'governance')}
+                                                    dataSource={filterAndSort(governance, 'governance')}
                                                     renderItem={(rule) => (
                                                         <List.Item
                                                             className="!w-full p-0"
@@ -960,7 +1212,7 @@ export default function Show({ project: initialProject }) {
                                                     )}
                                                 />
                                             ) : (
-                                                <p>Sem regras definidas.</p>
+                                                <EmptyState icon={FiShield} />
                                             )}
                                         </Section>
                                     ),
@@ -970,7 +1222,9 @@ export default function Show({ project: initialProject }) {
                                     label: (
                                         <Tooltip title="Metas não funcionais e qualidade">
                                             <span className="project-tab-label flex items-center gap-2">
-                                                <FiCheckSquare className="h-4 w-4 text-[var(--color-primary)]" />
+                                                <span className="rounded-lg bg-red-500/15 p-2 text-red-600">
+                                                    <FiCheckSquare className="h-4 w-4" />
+                                                </span>
                                                 <span>NFRs</span>
                                             </span>
                                         </Tooltip>
@@ -993,41 +1247,14 @@ export default function Show({ project: initialProject }) {
                                             }
                                             subtitle="Metas não-funcionais e qualidade."
                                         >
-                                            <div className="mb-3 flex flex-wrap gap-2">
-                                                <Input.Search
-                                                    allowClear
-                                                    placeholder="Buscar NFR..."
-                                                    className="max-w-xs"
-                                                    value={searchFilters.nfrs}
-                                                    onChange={(e) =>
-                                                        setSearchFilters((prev) => ({
-                                                            ...prev,
-                                                            nfrs: e.target.value,
-                                                        }))
-                                                    }
-                                                />
-                                                <Select
-                                                    allowClear
-                                                    placeholder="Prioridade"
-                                                    className="w-40"
-                                                    value={statusFilters.nfrs || undefined}
-                                                    onChange={(v) =>
-                                                        setStatusFilters((prev) => ({
-                                                            ...prev,
-                                                            nfrs: v || '',
-                                                        }))
-                                                    }
-                                                    options={[
-                                                        { label: 'Alta', value: 'high' },
-                                                        { label: 'Média', value: 'medium' },
-                                                        { label: 'Baixa', value: 'low' },
-                                                    ]}
-                                                />
-                                            </div>
-                                            {filterList(nfrs, 'category', 'nfrs', 'priority').length ? (
+                                            <SearchSortBar
+                                                moduleKey="nfrs"
+                                                placeholder="Buscar NFRs"
+                                            />
+                                            {filterAndSort(nfrs, 'nfrs', 'priority').length ? (
                                                 <List
                                                     size="small"
-                                                    dataSource={filterList(nfrs, 'category', 'nfrs', 'priority')}
+                                                    dataSource={filterAndSort(nfrs, 'nfrs', 'priority')}
                                                     renderItem={(nfr) => (
                                                         <List.Item
                                                             className="!w-full p-0"
@@ -1068,7 +1295,7 @@ export default function Show({ project: initialProject }) {
                                                     )}
                                                 />
                                             ) : (
-                                                <p>Sem NFRs registradas.</p>
+                                                <EmptyState icon={FiCheckSquare} />
                                             )}
                                         </Section>
                                     ),
@@ -1078,7 +1305,9 @@ export default function Show({ project: initialProject }) {
                                     label: (
                                         <Tooltip title="Decisões arquiteturais registradas">
                                             <span className="project-tab-label flex items-center gap-2">
-                                                <FiClipboard className="h-4 w-4 text-[var(--color-primary)]" />
+                                                <span className="rounded-lg bg-red-500/15 p-2 text-red-600">
+                                                    <FiClipboard className="h-4 w-4" />
+                                                </span>
                                                 <span>Decisões</span>
                                             </span>
                                         </Tooltip>
@@ -1101,42 +1330,14 @@ export default function Show({ project: initialProject }) {
                                             }
                                             subtitle="Registro de decisões arquiteturais."
                                         >
-                                            <div className="mb-3 flex flex-wrap gap-2">
-                                                <Input.Search
-                                                    allowClear
-                                                    placeholder="Buscar decisão..."
-                                                    className="max-w-xs"
-                                                    value={searchFilters.decisions}
-                                                    onChange={(e) =>
-                                                        setSearchFilters((prev) => ({
-                                                            ...prev,
-                                                            decisions: e.target.value,
-                                                        }))
-                                                    }
-                                                />
-                                                <Select
-                                                    allowClear
-                                                    placeholder="Status"
-                                                    className="w-40"
-                                                    value={statusFilters.decisions || undefined}
-                                                    onChange={(v) =>
-                                                        setStatusFilters((prev) => ({
-                                                            ...prev,
-                                                            decisions: v || '',
-                                                        }))
-                                                    }
-                                                    options={[
-                                                        { label: 'Proposta', value: 'proposed' },
-                                                        { label: 'Aceita', value: 'accepted' },
-                                                        { label: 'Substituída', value: 'superseded' },
-                                                        { label: 'Rejeitada', value: 'rejected' },
-                                                    ]}
-                                                />
-                                            </div>
-                                            {filterList(decisions, 'title', 'decisions').length ? (
+                                            <SearchSortBar
+                                                moduleKey="decisions"
+                                                placeholder="Buscar decisões"
+                                            />
+                                            {filterAndSort(decisions, 'decisions').length ? (
                                                 <List
                                                     size="small"
-                                                    dataSource={filterList(decisions, 'title', 'decisions')}
+                                                    dataSource={filterAndSort(decisions, 'decisions')}
                                                     renderItem={(adr) => (
                                                         <List.Item
                                                             className="!w-full p-0"
@@ -1175,7 +1376,7 @@ export default function Show({ project: initialProject }) {
                                                     )}
                                                 />
                                             ) : (
-                                                <p>Sem ADRs ainda.</p>
+                                                <EmptyState icon={FiClipboard} />
                                             )}
                                         </Section>
                                     ),
@@ -1227,7 +1428,7 @@ export default function Show({ project: initialProject }) {
                     <Form.Item label="Público-alvo" name="target_users">
                         <Input className="h-11" />
                     </Form.Item>
-                    <div className="flex justify-end gap-3 pt-6">
+                    <div className="flex justify-end gap-3">
                         <PrimaryButton
                             variant="outlineRed"
                             onClick={() => setEditingOverview(false)}
@@ -1261,7 +1462,7 @@ export default function Show({ project: initialProject }) {
                         <Input />
                     </Form.Item>
                     <Form.Item label="Racional" name="rationale">
-                        <TextArea rows={2} />
+                        <TextArea rows={2} className="resize-none" />
                     </Form.Item>
                     <Form.Item label="Link do fornecedor" name="vendor_url">
                         <Input />
@@ -1276,7 +1477,7 @@ export default function Show({ project: initialProject }) {
                     />
                 </Form.Item>
                     <Form.Item label="Restrições/Notas" name="constraints">
-                        <TextArea rows={2} />
+                        <TextArea rows={2} className="resize-none" />
                     </Form.Item>
                 <PrimaryButton
                     variant="red"
@@ -1302,10 +1503,10 @@ export default function Show({ project: initialProject }) {
                         <Input />
                     </Form.Item>
                     <Form.Item label="Racional" name="rationale">
-                        <TextArea rows={2} />
+                        <TextArea rows={2} className="resize-none" />
                     </Form.Item>
                     <Form.Item label="Referências" name="references">
-                        <TextArea rows={2} />
+                        <TextArea rows={2} className="resize-none" />
                     </Form.Item>
                 <Form.Item label="Status" name="status" rules={[{ required: true }]}>
                     <Select
@@ -1317,7 +1518,7 @@ export default function Show({ project: initialProject }) {
                     />
                 </Form.Item>
                     <Form.Item label="Restrições/Notas" name="constraints">
-                        <TextArea rows={2} />
+                        <TextArea rows={2} className="resize-none" />
                     </Form.Item>
                 <PrimaryButton
                     variant="red"
@@ -1368,7 +1569,7 @@ export default function Show({ project: initialProject }) {
                         <Input />
                     </Form.Item>
                     <Form.Item label="Mitigação" name="mitigation">
-                        <TextArea rows={2} />
+                        <TextArea rows={2} className="resize-none" />
                     </Form.Item>
                 <PrimaryButton
                     variant="red"
@@ -1400,7 +1601,7 @@ export default function Show({ project: initialProject }) {
                         <Input />
                     </Form.Item>
                     <Form.Item label="Notas" name="notes">
-                        <TextArea rows={2} />
+                        <TextArea rows={2} className="resize-none" />
                     </Form.Item>
                 <PrimaryButton
                     variant="red"
@@ -1443,10 +1644,10 @@ export default function Show({ project: initialProject }) {
                         />
                     </Form.Item>
                     <Form.Item label="Descrição" name="description">
-                        <TextArea rows={2} />
+                        <TextArea rows={2} className="resize-none" />
                     </Form.Item>
                     <Form.Item label="Requisitos" name="requirements">
-                        <TextArea rows={2} />
+                        <TextArea rows={2} className="resize-none" />
                     </Form.Item>
                 <PrimaryButton
                     variant="red"
@@ -1487,10 +1688,10 @@ export default function Show({ project: initialProject }) {
                         />
                     </Form.Item>
                     <Form.Item label="Racional" name="rationale">
-                        <TextArea rows={2} />
+                        <TextArea rows={2} className="resize-none" />
                     </Form.Item>
                     <Form.Item label="Avaliação atual" name="current_assessment">
-                        <TextArea rows={2} />
+                        <TextArea rows={2} className="resize-none" />
                     </Form.Item>
                 <PrimaryButton
                     variant="red"
@@ -1526,13 +1727,13 @@ export default function Show({ project: initialProject }) {
                         />
                     </Form.Item>
                     <Form.Item label="Contexto" name="context">
-                        <TextArea rows={2} />
+                        <TextArea rows={2} className="resize-none" />
                     </Form.Item>
                     <Form.Item label="Decisão" name="decision">
-                        <TextArea rows={2} />
+                        <TextArea rows={2} className="resize-none" />
                     </Form.Item>
                     <Form.Item label="Consequências" name="consequences">
-                        <TextArea rows={2} />
+                        <TextArea rows={2} className="resize-none" />
                     </Form.Item>
                 <PrimaryButton
                     variant="red"

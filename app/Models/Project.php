@@ -24,6 +24,7 @@ class Project extends Model
         'ai_consistency_checks_enabled',
         'tags',
         'nfr_summary',
+        'avatar_path',
     ];
 
     protected $casts = [
@@ -31,6 +32,15 @@ class Project extends Model
         'ai_consistency_checks_enabled' => 'boolean',
         'tags' => 'array',
         'nfr_summary' => 'array',
+    ];
+
+    /**
+     * Accessors to include in array/JSON serialization.
+     *
+     * @var list<string>
+     */
+    protected $appends = [
+        'avatar_url',
     ];
 
     public function personas(): HasMany
@@ -120,5 +130,14 @@ class Project extends Model
                 $project->uuid = (string) Str::uuid();
             }
         });
+    }
+
+    public function getAvatarUrlAttribute(): ?string
+    {
+        if ($this->avatar_path) {
+            return \Illuminate\Support\Facades\Storage::url($this->avatar_path);
+        }
+
+        return null;
     }
 }

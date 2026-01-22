@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Models\Project;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
@@ -63,7 +64,11 @@ class GoogleController extends Controller
 
         Auth::login($user, true);
 
-        return redirect()->route('dashboard');
+        $hasProjects = Project::whereHas('members', function ($query) use ($user) {
+            $query->where('user_id', $user->id);
+        })->exists();
+
+        return redirect()->route($hasProjects ? 'projects.index' : 'dashboard');
     }
 
     private function makeUniqueUsername(string $base): string

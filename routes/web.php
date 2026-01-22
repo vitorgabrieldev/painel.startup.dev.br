@@ -65,9 +65,11 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/projects/{project}/governance', [ProjectDataController::class, 'addGovernance'])->name('projects.governance.store');
     Route::post('/projects/{project}/nfrs', [ProjectDataController::class, 'addNfr'])->name('projects.nfrs.store');
     Route::post('/projects/{project}/decisions', [ProjectDataController::class, 'addDecision'])->name('projects.decisions.store');
+    Route::post('/projects/{project}/avatar', [ProjectDataController::class, 'updateAvatar'])->name('projects.avatar.update');
 
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
+    Route::post('/profile/avatar', [ProfileController::class, 'updateAvatar'])->name('profile.avatar.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 });
 
