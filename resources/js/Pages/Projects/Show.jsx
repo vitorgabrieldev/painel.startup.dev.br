@@ -2,9 +2,10 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import PrimaryButton from '@/Components/PrimaryButton';
 import { Head, Link } from '@inertiajs/react';
 import axios from 'axios';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
     Button,
+    Checkbox,
     Form,
     Input,
     Modal,
@@ -19,11 +20,13 @@ import {
     FiAlertTriangle,
     FiArrowDown,
     FiArrowUp,
+    FiMessageSquare,
     FiClipboard,
     FiClock,
     FiEdit2,
     FiFileText,
     FiGitBranch,
+    FiSettings,
     FiHome,
     FiInfo,
     FiLayers,
@@ -170,6 +173,27 @@ export default function Show({ project: initialProject }) {
     const [isMobileBlocked, setIsMobileBlocked] = useState(false);
     const [avatarPreview, setAvatarPreview] = useState(null);
     const [avatarProcessing, setAvatarProcessing] = useState(false);
+    const [aiChatOpen, setAiChatOpen] = useState(false);
+    const [aiConfigOpen, setAiConfigOpen] = useState(false);
+    const [aiMessages, setAiMessages] = useState([]);
+    const [aiInput, setAiInput] = useState('');
+    const [aiLoading, setAiLoading] = useState(false);
+    const [aiError, setAiError] = useState('');
+    const aiChatRef = useRef(null);
+    const [aiContext, setAiContext] = useState({
+        overview: true,
+        purpose: true,
+        scope: true,
+        targetUsers: true,
+        stack: true,
+        patterns: true,
+        risks: true,
+        integrations: true,
+        governance: true,
+        nfrs: true,
+        decisions: true,
+        chatHistory: true,
+    });
 
     const [editingOverview, setEditingOverview] = useState(false);
     const [overviewForm] = Form.useForm();
@@ -257,6 +281,49 @@ export default function Show({ project: initialProject }) {
         media.addEventListener('change', update);
         return () => media.removeEventListener('change', update);
     }, []);
+
+    useEffect(() => {
+        if (!aiChatOpen || !aiChatRef.current) return;
+        aiChatRef.current.scrollTop = aiChatRef.current.scrollHeight;
+    }, [aiChatOpen, aiMessages, aiLoading]);
+
+    const sendAiMessage = async () => {
+        const content = aiInput.trim();
+        if (!content || aiLoading) return;
+
+        setAiError('');
+        setAiInput('');
+        const newMessages = [...aiMessages, { role: 'user', content }];
+        setAiMessages(newMessages);
+        setAiLoading(true);
+
+        try {
+            const history = newMessages.slice(-8).map((item) => ({
+                role: item.role,
+                content: item.content,
+            }));
+            const { data } = await axios.post(
+                route('projects.ai.chat', project.id),
+                {
+                    message: content,
+                    history,
+                    context: aiContext,
+                },
+            );
+            if (data?.message) {
+                setAiMessages((prev) => [
+                    ...prev,
+                    { role: 'assistant', content: data.message },
+                ]);
+            } else {
+                throw new Error('empty_response');
+            }
+        } catch (error) {
+            setAiError('Não foi possível responder agora.');
+        } finally {
+            setAiLoading(false);
+        }
+    };
 
     useEffect(() => {
         try {
@@ -740,9 +807,10 @@ export default function Show({ project: initialProject }) {
     }
 
     return (
-        <AuthenticatedLayout
-            header={
-                <div className="flex flex-wrap items-center justify-between gap-4">
+        <>
+            <AuthenticatedLayout
+                header={
+                    <div className="flex flex-wrap items-center justify-between gap-4">
                     <div className="flex items-center gap-3">
                         <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-lg border border-gray-200 bg-[var(--color-surface-2)] text-sm font-semibold text-[var(--color-dark)]">
                             {avatarUrl ? (
@@ -774,10 +842,26 @@ export default function Show({ project: initialProject }) {
                                 }
                             />
                         </label>
+                        <button
+                            type="button"
+                            onClick={() => setAiConfigOpen(true)}
+                            className="flex h-10 w-10 items-center justify-center rounded-[6px] border border-gray-200 text-gray-500 transition hover:border-[var(--color-secondary)] hover:text-[var(--color-secondary)]"
+                            aria-label="Configurar contexto da IA"
+                        >
+                            <FiSettings className="h-5 w-5" />
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setAiChatOpen(true)}
+                            className="flex h-10 w-10 items-center justify-center rounded-[6px] border border-gray-200 text-gray-600 transition hover:border-[var(--color-secondary)] hover:text-[var(--color-secondary)]"
+                            aria-label="Abrir chat com IA"
+                        >
+                            <FiMessageSquare className="h-5 w-5" />
+                        </button>
                     </div>
-                </div>
-            }
-        >
+                    </div>
+                }
+            >
             {contextHolder}
             <Head title={project.name} />
             <div className="py-8">
@@ -2151,6 +2235,261 @@ export default function Show({ project: initialProject }) {
                     </div>
             </Form>
         </Modal>
-        </AuthenticatedLayout>
+            </AuthenticatedLayout>
+
+        <Modal
+            open={aiChatOpen}
+            onCancel={() => setAiChatOpen(false)}
+            footer={null}
+            title="Safio Creator AI"
+            width={560}
+            centered
+            destroyOnClose
+        >
+            <div className="flex h-[520px] flex-col gap-3">
+                <div
+                    ref={aiChatRef}
+                    className="flex-1 space-y-3 overflow-y-auto rounded-xl border border-gray-200 bg-white p-4"
+                >
+                    {aiMessages.length === 0 && !aiLoading && (
+                        <div className="rounded-lg border border-dashed border-gray-200 bg-gray-50 p-3 text-xs text-gray-500">
+                            Faça perguntas sobre o projeto e receba sugestões rápidas.
+                        </div>
+                    )}
+                    {aiMessages.map((item, index) => (
+                        <div
+                            key={`${item.role}-${index}`}
+                            className={`flex ${item.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                        >
+                            <div
+                                className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm ${
+                                    item.role === 'user'
+                                        ? 'bg-[var(--color-primary)] text-white'
+                                        : 'bg-[var(--color-surface-2)] text-[var(--color-dark)]'
+                                }`}
+                            >
+                                {item.content}
+                            </div>
+                        </div>
+                    ))}
+                    {aiLoading && (
+                        <div className="flex justify-start">
+                            <div className="rounded-2xl bg-[var(--color-surface-2)] px-4 py-3 text-sm text-gray-500">
+                                Digitando...
+                            </div>
+                        </div>
+                    )}
+                </div>
+                {aiError && (
+                    <p className="text-xs text-red-500">{aiError}</p>
+                )}
+                <form
+                    onSubmit={(event) => {
+                        event.preventDefault();
+                        sendAiMessage();
+                    }}
+                    className="flex items-center gap-2"
+                >
+                    <Input
+                        value={aiInput}
+                        onChange={(event) => setAiInput(event.target.value)}
+                        placeholder="Pergunte algo sobre o projeto..."
+                        disabled={aiLoading}
+                    />
+                    <PrimaryButton
+                        variant="red"
+                        type="submit"
+                        className="!text-white"
+                        loading={aiLoading}
+                    >
+                        Enviar
+                    </PrimaryButton>
+                </form>
+            </div>
+        </Modal>
+
+            <Modal
+                open={aiConfigOpen}
+                onCancel={() => setAiConfigOpen(false)}
+                footer={null}
+                title="Contexto da IA"
+                width={520}
+                centered
+                destroyOnClose
+            >
+                <div className="space-y-4">
+                    <p className="text-sm text-gray-600">
+                        Defina o que a IA pode usar como contexto ao conversar
+                        sobre este projeto.
+                    </p>
+                <div className="ai-context-grid grid gap-3 sm:grid-cols-2">
+                    <div className="ai-context-option">
+                        <Checkbox
+                            checked={aiContext.overview}
+                            onChange={(e) =>
+                                setAiContext((prev) => ({
+                                    ...prev,
+                                    overview: e.target.checked,
+                                }))
+                            }
+                        >
+                            Resumo
+                        </Checkbox>
+                    </div>
+                    <div className="ai-context-option">
+                        <Checkbox
+                            checked={aiContext.purpose}
+                            onChange={(e) =>
+                                setAiContext((prev) => ({
+                                    ...prev,
+                                    purpose: e.target.checked,
+                                }))
+                            }
+                        >
+                            Missão/Propósito
+                        </Checkbox>
+                    </div>
+                    <div className="ai-context-option">
+                        <Checkbox
+                            checked={aiContext.scope}
+                            onChange={(e) =>
+                                setAiContext((prev) => ({
+                                    ...prev,
+                                    scope: e.target.checked,
+                                }))
+                            }
+                        >
+                            Escopo
+                        </Checkbox>
+                    </div>
+                    <div className="ai-context-option">
+                        <Checkbox
+                            checked={aiContext.targetUsers}
+                            onChange={(e) =>
+                                setAiContext((prev) => ({
+                                    ...prev,
+                                    targetUsers: e.target.checked,
+                                }))
+                            }
+                        >
+                            Público-alvo
+                        </Checkbox>
+                    </div>
+                    <div className="ai-context-option">
+                        <Checkbox
+                            checked={aiContext.stack}
+                            onChange={(e) =>
+                                setAiContext((prev) => ({
+                                    ...prev,
+                                    stack: e.target.checked,
+                                }))
+                            }
+                        >
+                            Stack técnica
+                        </Checkbox>
+                    </div>
+                    <div className="ai-context-option">
+                        <Checkbox
+                            checked={aiContext.patterns}
+                            onChange={(e) =>
+                                setAiContext((prev) => ({
+                                    ...prev,
+                                    patterns: e.target.checked,
+                                }))
+                            }
+                        >
+                            Padrões
+                        </Checkbox>
+                    </div>
+                    <div className="ai-context-option">
+                        <Checkbox
+                            checked={aiContext.risks}
+                            onChange={(e) =>
+                                setAiContext((prev) => ({
+                                    ...prev,
+                                    risks: e.target.checked,
+                                }))
+                            }
+                        >
+                            Riscos
+                        </Checkbox>
+                    </div>
+                    <div className="ai-context-option">
+                        <Checkbox
+                            checked={aiContext.integrations}
+                            onChange={(e) =>
+                                setAiContext((prev) => ({
+                                    ...prev,
+                                    integrations: e.target.checked,
+                                }))
+                            }
+                        >
+                            Integrações
+                        </Checkbox>
+                    </div>
+                    <div className="ai-context-option">
+                        <Checkbox
+                            checked={aiContext.governance}
+                            onChange={(e) =>
+                                setAiContext((prev) => ({
+                                    ...prev,
+                                    governance: e.target.checked,
+                                }))
+                            }
+                        >
+                            Governança
+                        </Checkbox>
+                    </div>
+                    <div className="ai-context-option">
+                        <Checkbox
+                            checked={aiContext.nfrs}
+                            onChange={(e) =>
+                                setAiContext((prev) => ({
+                                    ...prev,
+                                    nfrs: e.target.checked,
+                                }))
+                            }
+                        >
+                            NFRs
+                        </Checkbox>
+                    </div>
+                    <div className="ai-context-option">
+                        <Checkbox
+                            checked={aiContext.decisions}
+                            onChange={(e) =>
+                                setAiContext((prev) => ({
+                                    ...prev,
+                                    decisions: e.target.checked,
+                                }))
+                            }
+                        >
+                            Decisões
+                        </Checkbox>
+                    </div>
+                    <div className="ai-context-option">
+                        <Checkbox
+                            checked={aiContext.chatHistory}
+                            onChange={(e) =>
+                                setAiContext((prev) => ({
+                                    ...prev,
+                                    chatHistory: e.target.checked,
+                                }))
+                            }
+                        >
+                            Chat inicial do projeto
+                        </Checkbox>
+                    </div>
+                </div>
+                    <div className="flex justify-end gap-3 pt-2">
+                        <PrimaryButton
+                            variant="outlineRed"
+                            onClick={() => setAiConfigOpen(false)}
+                        >
+                            Fechar
+                        </PrimaryButton>
+                    </div>
+                </div>
+            </Modal>
+        </>
     );
 }

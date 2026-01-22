@@ -22,7 +22,7 @@ class MistralClient
         ];
     }
 
-    public function advise(array $messages): array
+    public function advise(array $messages, ?int $timeoutSeconds = null): array
     {
         $apiKey = config('services.mistral.api_key');
         $baseUrl = rtrim(config('services.mistral.base_url'), '/');
@@ -32,7 +32,12 @@ class MistralClient
             return ['error' => 'Mistral credentials missing'];
         }
 
-        $response = Http::withToken($apiKey)->post(
+        $client = Http::withToken($apiKey);
+        if ($timeoutSeconds) {
+            $client = $client->timeout($timeoutSeconds)->connectTimeout(min(5, $timeoutSeconds));
+        }
+
+        $response = $client->post(
             "{$baseUrl}/chat/completions",
             [
                 'model' => $model,
@@ -57,6 +62,24 @@ class MistralClient
         }
 
         return $json ?? [];
+    }
+
+    public function quickReply(array $messages, int $timeoutSeconds = 12): array
+    {
+        $result = $this->advise($messages, $timeoutSeconds);
+        if (isset($result['error'])) {
+            return $result;
+        }
+
+        $message = $this->extractMessage($result) ?? $this->extractContent($result);
+        if (!$message) {
+            return ['error' => 'invalid_message'];
+        }
+
+        return [
+            'message' => $message,
+            'meta' => $this->buildMeta($result, 1),
+        ];
     }
 
     private function callAgent(array $messages): array

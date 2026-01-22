@@ -51,6 +51,8 @@ Route::middleware(['auth'])->group(function () {
         ->name('projects.chat.start');
     Route::post('/projects/manual', [ProjectChatController::class, 'createManual'])
         ->name('projects.manual.create');
+    Route::post('/projects/{project}/ai/chat', [ProjectChatController::class, 'aiChat'])
+        ->name('projects.ai.chat');
     Route::post('/projects/{project}/chat/answer', [ProjectChatController::class, 'answer'])
         ->name('projects.chat.answer');
     Route::post('/projects/{project}/chat/finalize', [ProjectChatController::class, 'finalize'])

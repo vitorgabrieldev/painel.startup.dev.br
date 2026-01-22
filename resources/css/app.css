@@ -148,6 +148,44 @@ html {
     margin-bottom: 0;
 }
 
+.ai-context-grid .ai-context-option {
+    display: flex;
+    align-items: center;
+    padding: 10px 12px;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    background: #fff;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.ai-context-grid .ai-context-option:hover {
+    border-color: var(--color-secondary);
+    box-shadow: 0 4px 10px rgba(15, 23, 42, 0.06);
+}
+
+.ai-context-grid .ant-checkbox {
+    margin-top: 2px;
+}
+
+.ai-context-grid .ant-checkbox + span {
+    font-size: 14px;
+    font-weight: 600;
+    color: #111827;
+}
+
+.ai-context-grid .ant-checkbox-inner {
+    width: 18px;
+    height: 18px;
+    border-radius: 5px;
+}
+
+.ai-context-grid .ant-checkbox-inner::after {
+    width: 6px;
+    height: 10px;
+    inset-inline-start: 5px;
+    inset-block-start: 2px;
+}
+
 textarea {
     resize: none !important;
 }

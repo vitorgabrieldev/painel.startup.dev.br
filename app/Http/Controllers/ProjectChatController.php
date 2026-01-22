@@ -327,6 +327,55 @@ class ProjectChatController extends Controller
         ]);
     }
 
+    public function aiChat(
+        Request $request,
+        Project $project,
+        MistralClient $mistral,
+    ) {
+        abort_unless(
+            $project->members()->where('user_id', $request->user()->id)->exists(),
+            404,
+        );
+
+        $data = $request->validate([
+            'message' => ['required', 'string', 'min:1', 'max:2000'],
+            'history' => ['array'],
+            'context' => ['array'],
+        ]);
+
+        $contextFlags = is_array($data['context'] ?? null) ? $data['context'] : [];
+        $history = $this->sanitizeHistory($data['history'] ?? []);
+
+        $messages = [
+            [
+                'role' => 'system',
+                'content' => 'Você é um assistente de produto e tecnologia. Responda em pt-BR de forma direta, prática e curta. Use o contexto disponível do projeto quando relevante. Evite listas longas e jargões.',
+            ],
+        ];
+
+        $contextText = $this->buildAiContext($project, $contextFlags);
+        if ($contextText) {
+            $messages[] = [
+                'role' => 'system',
+                'content' => "Contexto do projeto:\n".$contextText,
+            ];
+        }
+
+        $messages = array_merge($messages, $history, [
+            ['role' => 'user', 'content' => $data['message']],
+        ]);
+
+        $response = $mistral->quickReply($messages, 12);
+        if (isset($response['error']) || empty($response['message'])) {
+            return response()->json(['error' => 'ai_unavailable'], 502);
+        }
+
+        return response()->json([
+            'message' => $response['message'],
+            'meta' => $response['meta'] ?? null,
+        ]);
+    }
+
     private function resolveChat(Project $project, int $userId): Chat
     {
         $chat = $project->chats()->orderBy('created_at')->first();
@@ -481,5 +530,163 @@ class ProjectChatController extends Controller
         } catch (\Throwable $th) {
             // ignore logging errors
         }
+    }
+
+    private function sanitizeHistory(array $history): array
+    {
+        $clean = [];
+        foreach ($history as $item) {
+            $role = $item['role'] ?? '';
+            if (!in_array($role, ['user', 'assistant'], true)) {
+                continue;
+            }
+            $content = trim((string) ($item['content'] ?? ''));
+            if ($content === '') {
+                continue;
+            }
+            $clean[] = [
+                'role' => $role,
+                'content' => Str::limit($content, 800, ''),
+            ];
+        }
+
+        return array_slice($clean, -8);
+    }
+
+    private function buildAiContext(Project $project, array $flags): string
+    {
+        $lines = [];
+        $isOn = fn (string $key) => filter_var($flags[$key] ?? false, FILTER_VALIDATE_BOOL);
+
+        if ($isOn('overview') && $project->overview) {
+            $lines[] = 'Resumo: '.Str::limit($project->overview, 420, '');
+        }
+        if ($isOn('purpose') && $project->purpose) {
+            $lines[] = 'Missão/Propósito: '.Str::limit($project->purpose, 300, '');
+        }
+        if ($isOn('scope') && $project->scope) {
+            $lines[] = 'Escopo: '.Str::limit($project->scope, 320, '');
+        }
+        if ($isOn('targetUsers') && $project->target_users) {
+            $lines[] = 'Público-alvo: '.Str::limit($project->target_users, 280, '');
+        }
+
+        if ($isOn('stack')) {
+            $stack = $project->techStackItems()
+                ->orderBy('id')
+                ->limit(8)
+                ->get(['name', 'category', 'version', 'status']);
+            if ($stack->isNotEmpty()) {
+                $items = $stack->map(function ($item) {
+                    $parts = array_filter([$item->category, $item->version, $item->status]);
+                    $suffix = $parts ? ' ('.implode(', ', $parts).')' : '';
+                    return Str::limit($item->name.$suffix, 80, '');
+                })->all();
+                $lines[] = 'Stack: '.implode('; ', $items);
+            }
+        }
+
+        if ($isOn('patterns')) {
+            $patterns = $project->architecturePatterns()
+                ->orderBy('id')
+                ->limit(6)
+                ->get(['name', 'status']);
+            if ($patterns->isNotEmpty()) {
+                $items = $patterns->map(function ($item) {
+                    $suffix = $item->status ? ' ('.$item->status.')' : '';
+                    return Str::limit($item->name.$suffix, 80, '');
+                })->all();
+                $lines[] = 'Padrões: '.implode('; ', $items);
+            }
+        }
+
+        if ($isOn('risks')) {
+            $risks = $project->risks()
+                ->orderBy('id')
+                ->limit(6)
+                ->get(['title', 'severity', 'likelihood']);
+            if ($risks->isNotEmpty()) {
+                $items = $risks->map(function ($item) {
+                    $suffix = trim(($item->severity ?? '').' '.$item->likelihood);
+                    $suffix = $suffix ? " ({$suffix})" : '';
+                    return Str::limit($item->title.$suffix, 90, '');
+                })->all();
+                $lines[] = 'Riscos: '.implode('; ', $items);
+            }
+        }
+
+        if ($isOn('integrations')) {
+            $links = $project->integrationLinks()
+                ->orderBy('id')
+                ->limit(6)
+                ->get(['label', 'type']);
+            if ($links->isNotEmpty()) {
+                $items = $links->map(function ($item) {
+                    $suffix = $item->type ? ' ('.$item->type.')' : '';
+                    return Str::limit($item->label.$suffix, 90, '');
+                })->all();
+                $lines[] = 'Integrações: '.implode('; ', $items);
+            }
+        }
+
+        if ($isOn('governance')) {
+            $rules = $project->governanceRules()
+                ->orderBy('id')
+                ->limit(6)
+                ->get(['name', 'scope', 'status']);
+            if ($rules->isNotEmpty()) {
+                $items = $rules->map(function ($item) {
+                    $suffix = trim(($item->scope ?? '').' '.($item->status ?? ''));
+                    $suffix = $suffix ? " ({$suffix})" : '';
+                    return Str::limit($item->name.$suffix, 90, '');
+                })->all();
+                $lines[] = 'Governança: '.implode('; ', $items);
+            }
+        }
+
+        if ($isOn('nfrs')) {
+            $nfrs = $project->nonFunctionalRequirements()
+                ->orderBy('id')
+                ->limit(6)
+                ->get(['category', 'target', 'priority']);
+            if ($nfrs->isNotEmpty()) {
+                $items = $nfrs->map(function ($item) {
+                    $suffix = trim(($item->target ?? '').' '.($item->priority ?? ''));
+                    $suffix = $suffix ? " ({$suffix})" : '';
+                    return Str::limit($item->category.$suffix, 90, '');
+                })->all();
+                $lines[] = 'NFRs: '.implode('; ', $items);
+            }
+        }
+
+        if ($isOn('decisions')) {
+            $decisions = $project->decisionRecords()
+                ->orderBy('id')
+                ->limit(6)
+                ->get(['title', 'status']);
+            if ($decisions->isNotEmpty()) {
+                $items = $decisions->map(function ($item) {
+                    $suffix = $item->status ? ' ('.$item->status.')' : '';
+                    return Str::limit($item->title.$suffix, 90, '');
+                })->all();
+                $lines[] = 'Decisões: '.implode('; ', $items);
+            }
+        }
+
+        if ($isOn('chatHistory')) {
+            $chat = $project->chats()->orderBy('created_at')->first();
+            if ($chat) {
+                $messages = $chat->messages()->orderBy('id')->limit(8)->get(['role', 'content']);
+                if ($messages->isNotEmpty()) {
+                    $lines[] = 'Chat inicial:';
+                    foreach ($messages as $message) {
+                        $role = $message->role === 'assistant' ? 'Assistente' : 'Usuário';
+                        $lines[] = $role.': '.Str::limit((string) $message->content, 140, '');
+                    }
+                }
+            }
+        }
+
+        return implode("\n", $lines);
     }
 }
