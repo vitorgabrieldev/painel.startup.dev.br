@@ -78,11 +78,27 @@ class ProfileController extends Controller
      */
     public function destroy(Request $request): RedirectResponse
     {
-        $request->validate([
-            'password' => ['required', 'current_password'],
-        ]);
-
         $user = $request->user();
+
+        $isSocial = !empty($user->github_id) || !empty($user->google_id);
+
+        if ($isSocial) {
+            $request->validate([
+                'confirmation' => [
+                    'required',
+                    'string',
+                    function (string $attribute, string $value, $fail) use ($user) {
+                        if (trim($value) !== $user->username) {
+                            $fail('Confirmação inválida. Digite seu username para excluir.');
+                        }
+                    },
+                ],
+            ]);
+        } else {
+            $request->validate([
+                'password' => ['required', 'current_password'],
+            ]);
+        }
 
         Auth::logout();
 

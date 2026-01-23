@@ -151,41 +151,395 @@ html {
 .ai-context-grid .ai-context-option {
     display: flex;
     align-items: center;
-    padding: 10px 12px;
+    gap: 10px;
+    width: 100%;
+    padding: 12px 14px;
     border: 1px solid #e5e7eb;
-    border-radius: 10px;
-    background: #fff;
-    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    border-radius: 12px;
+    background: #f9fafb;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+    cursor: pointer;
 }
 
 .ai-context-grid .ai-context-option:hover {
     border-color: var(--color-secondary);
-    box-shadow: 0 4px 10px rgba(15, 23, 42, 0.06);
+    background: #fff;
+    box-shadow: 0 6px 14px rgba(15, 23, 42, 0.08);
 }
 
-.ai-context-grid .ant-checkbox {
-    margin-top: 2px;
+.ai-context-grid .ai-context-option.ant-checkbox-wrapper-checked {
+    border-color: var(--color-secondary);
+    background: #fff;
 }
 
-.ai-context-grid .ant-checkbox + span {
+.ai-context-grid .ai-context-option .ant-checkbox {
+    margin-top: 0;
+}
+
+.ai-context-grid .ai-context-option .ant-checkbox + span {
     font-size: 14px;
     font-weight: 600;
     color: #111827;
 }
 
-.ai-context-grid .ant-checkbox-inner {
+.ai-context-grid .ai-context-option .ant-checkbox-inner {
     width: 18px;
     height: 18px;
     border-radius: 5px;
 }
 
-.ai-context-grid .ant-checkbox-inner::after {
+.ai-context-grid .ai-context-option .ant-checkbox-inner::after {
     width: 6px;
     height: 10px;
     inset-inline-start: 5px;
-    inset-block-start: 2px;
+    inset-block-start: 8px;
 }
 
 textarea {
     resize: none !important;
+}
+
+.ai-chat-bubble {
+    position: relative;
+}
+
+.ai-chat-bubble::after {
+    content: '';
+    position: absolute;
+    bottom: 10px;
+    width: 10px;
+    height: 10px;
+    transform: rotate(45deg);
+}
+
+.ai-chat-bubble-user::after {
+    right: -2px;
+    background: var(--color-primary);
+}
+
+.ai-chat-bubble-assistant::after {
+    left: -2px;
+    background: var(--color-surface-2);
+}
+
+.ai-chat-em {
+    font-weight: 600;
+}
+
+.ai-generate-button {
+    height: 38px;
+    border-radius: 9999px;
+    border: 1px solid #e5e7eb;
+    background: #fff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 0 14px;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    cursor: pointer;
+}
+
+.ai-generate-button img {
+    width: 18px;
+    height: 18px;
+}
+
+.ai-generate-label {
+    font-size: 12px;
+    font-weight: 700;
+    color: #111827;
+    letter-spacing: 0.2px;
+}
+
+.ai-generate-button.is-loading .ai-generate-label {
+    opacity: 0.7;
+}
+
+.ai-generate-spinner {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    border: 2px solid rgba(15, 23, 42, 0.2);
+    border-top-color: var(--color-secondary);
+    animation: ai-spin 0.8s linear infinite;
+}
+
+.ai-generate-button:hover {
+    border-color: var(--color-secondary);
+    box-shadow: 0 4px 10px rgba(15, 23, 42, 0.08);
+}
+
+.ai-generate-button:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+    box-shadow: none;
+}
+
+.ai-suggestions {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.ai-suggestion-item {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    align-items: center;
+    gap: 12px;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    padding: 12px 14px;
+    background: #fff;
+}
+
+.ai-suggestion-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: #111827;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.ai-suggestion-subtitle {
+    font-size: 12px;
+    color: #6b7280;
+    margin-top: 2px;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    word-break: break-word;
+}
+
+.ai-suggestion-meta {
+    font-size: 11px;
+    font-weight: 600;
+    color: #6b7280;
+    border: 1px solid #e5e7eb;
+    border-radius: 999px;
+    padding: 4px 10px;
+    white-space: nowrap;
+}
+
+.ai-suggestion-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.ai-suggestion-accept,
+.ai-suggestion-reject {
+    width: 34px;
+    height: 34px;
+    border-radius: 999px;
+    border: 1px solid #e5e7eb;
+    background: #fff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    cursor: pointer;
+}
+
+.ai-suggestion-accept:hover {
+    border-color: #10b981;
+    box-shadow: 0 4px 10px rgba(16, 185, 129, 0.2);
+}
+
+.ai-suggestion-reject:hover {
+    border-color: #ef4444;
+    box-shadow: 0 4px 10px rgba(239, 68, 68, 0.2);
+}
+
+.ai-suggestion-accept:disabled,
+.ai-suggestion-reject:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+    box-shadow: none;
+}
+
+.ai-suggestions-empty {
+    padding: 18px;
+    border: 1px dashed #e5e7eb;
+    border-radius: 12px;
+    background: #f9fafb;
+    font-size: 13px;
+    color: #6b7280;
+    text-align: center;
+}
+
+.ai-suggestion-spinner {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    border: 2px solid rgba(15, 23, 42, 0.2);
+    border-top-color: var(--color-secondary);
+    animation: ai-spin 0.8s linear infinite;
+}
+
+.notification-popover {
+    position: absolute;
+    right: 0;
+    top: 48px;
+    width: 360px;
+    max-height: 460px;
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    box-shadow: 0 20px 45px rgba(15, 23, 42, 0.12);
+    padding: 12px;
+    z-index: 30;
+}
+
+.notif-action {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    border-radius: 6px;
+    border: 1px solid #e5e7eb;
+    background: #fff;
+    font-size: 12px;
+    color: #374151;
+    cursor: pointer;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.notif-action:hover {
+    border-color: var(--color-secondary);
+    box-shadow: 0 6px 12px rgba(15, 23, 42, 0.08);
+}
+
+.notif-action:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+    box-shadow: none;
+}
+
+.notif-list {
+    margin-top: 10px;
+    max-height: 360px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.notif-empty {
+    padding: 16px;
+    text-align: center;
+    font-size: 13px;
+    color: #6b7280;
+    background: #f9fafb;
+    border: 1px dashed #e5e7eb;
+    border-radius: 6px;
+}
+
+.notif-item {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px;
+    padding: 10px 12px;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    background: #fff;
+}
+
+.notif-item.is-unread {
+    border-color: rgba(244, 63, 94, 0.3);
+    background: #fff7f9;
+}
+
+.notif-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: #111827;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.notif-message {
+    margin-top: 2px;
+    font-size: 12px;
+    color: #4b5563;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.notif-meta {
+    margin-top: 4px;
+    font-size: 11px;
+    color: #9ca3af;
+}
+
+.notif-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.notif-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 999px;
+    border: 1px solid #e5e7eb;
+    background: #10b981;
+    cursor: pointer;
+}
+
+.notif-delete {
+    width: 30px;
+    height: 30px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    border: 1px solid #e5e7eb;
+    background: #fff;
+    cursor: pointer;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.notif-delete:hover {
+    border-color: #ef4444;
+    box-shadow: 0 6px 12px rgba(239, 68, 68, 0.15);
+}
+
+.notif-invite-actions {
+    display: inline-flex;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.invite-accept,
+.invite-reject {
+    padding: 6px 10px;
+    border-radius: 8px;
+    border: 1px solid #e5e7eb;
+    background: #fff;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.invite-accept:hover {
+    border-color: #10b981;
+    box-shadow: 0 6px 12px rgba(16, 185, 129, 0.15);
+}
+
+.invite-reject:hover {
+    border-color: #ef4444;
+    box-shadow: 0 6px 12px rgba(239, 68, 68, 0.15);
+}
+
+@keyframes ai-spin {
+    to {
+        transform: rotate(360deg);
+    }
 }

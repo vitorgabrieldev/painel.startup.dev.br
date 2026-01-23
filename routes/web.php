@@ -6,8 +6,10 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ProjectChatController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\ProjectDataController;
+use App\Http\Controllers\ProjectInvitationController;
 use App\Http\Controllers\Auth\GithubController;
 use App\Http\Controllers\Auth\GoogleController;
+use App\Http\Controllers\NotificationController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -69,6 +71,17 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/projects/{project}/nfrs', [ProjectDataController::class, 'addNfr'])->name('projects.nfrs.store');
     Route::post('/projects/{project}/decisions', [ProjectDataController::class, 'addDecision'])->name('projects.decisions.store');
     Route::post('/projects/{project}/avatar', [ProjectDataController::class, 'updateAvatar'])->name('projects.avatar.update');
+    Route::post('/projects/{project}/ai/generate', [ProjectDataController::class, 'generateAiData'])->name('projects.ai.generate');
+
+    Route::post('/projects/{project}/invites', [ProjectInvitationController::class, 'store'])->name('projects.invites.store');
+    Route::post('/invites/{invitation}/accept', [ProjectInvitationController::class, 'accept'])->name('projects.invites.accept');
+    Route::post('/invites/{invitation}/reject', [ProjectInvitationController::class, 'reject'])->name('projects.invites.reject');
+
+    Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
+    Route::post('/notifications/mark-all-read', [NotificationController::class, 'markAllRead'])->name('notifications.markAll');
+    Route::delete('/notifications', [NotificationController::class, 'deleteAll'])->name('notifications.deleteAll');
+    Route::post('/notifications/{notification}/read', [NotificationController::class, 'markRead'])->name('notifications.read');
+    Route::delete('/notifications/{notification}', [NotificationController::class, 'delete'])->name('notifications.delete');
 
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');

@@ -4,12 +4,15 @@ import InputLabel from '@/Components/InputLabel';
 import Modal from '@/Components/Modal';
 import SecondaryButton from '@/Components/SecondaryButton';
 import TextInput from '@/Components/TextInput';
-import { useForm } from '@inertiajs/react';
+import { useForm, usePage } from '@inertiajs/react';
 import { useRef, useState } from 'react';
 
-export default function DeleteUserForm({ className = '' }) {
+export default function DeleteUserForm({ className = '', isSocialUser = false }) {
     const [confirmingUserDeletion, setConfirmingUserDeletion] = useState(false);
     const passwordInput = useRef();
+    const confirmationInput = useRef();
+    const user = usePage().props.auth.user;
+    const confirmationHint = user?.username || 'seu username';
 
     const {
         data,
@@ -21,6 +24,7 @@ export default function DeleteUserForm({ className = '' }) {
         clearErrors,
     } = useForm({
         password: '',
+        confirmation: '',
     });
 
     const confirmUserDeletion = () => {
@@ -33,7 +37,13 @@ export default function DeleteUserForm({ className = '' }) {
         destroy(route('profile.destroy'), {
             preserveScroll: true,
             onSuccess: () => closeModal(),
-            onError: () => passwordInput.current.focus(),
+            onError: () => {
+                if (isSocialUser) {
+                    confirmationInput.current?.focus();
+                } else {
+                    passwordInput.current?.focus();
+                }
+            },
             onFinish: () => reset(),
         });
     };
@@ -72,30 +82,57 @@ export default function DeleteUserForm({ className = '' }) {
                     </p>
 
                     <div className="mt-6">
-                        <InputLabel
-                            htmlFor="password"
-                            value="Senha"
-                            className="sr-only"
-                        />
+                        {isSocialUser ? (
+                            <>
+                                <InputLabel
+                                    htmlFor="confirmation"
+                                    value={`Digite seu username (${confirmationHint}) para confirmar`}
+                                />
+                                <TextInput
+                                    id="confirmation"
+                                    name="confirmation"
+                                    ref={confirmationInput}
+                                    value={data.confirmation}
+                                    onChange={(e) =>
+                                        setData('confirmation', e.target.value)
+                                    }
+                                    className="mt-1 block w-3/4"
+                                    isFocused
+                                    placeholder={confirmationHint}
+                                />
+                                <InputError
+                                    message={errors.confirmation}
+                                    className="mt-2"
+                                />
+                            </>
+                        ) : (
+                            <>
+                                <InputLabel
+                                    htmlFor="password"
+                                    value="Senha"
+                                    className="sr-only"
+                                />
 
-                        <TextInput
-                            id="password"
-                            type="password"
-                            name="password"
-                            ref={passwordInput}
-                            value={data.password}
-                            onChange={(e) =>
-                                setData('password', e.target.value)
-                            }
-                            className="mt-1 block w-3/4"
-                            isFocused
-                            placeholder="Senha"
-                        />
+                                <TextInput
+                                    id="password"
+                                    type="password"
+                                    name="password"
+                                    ref={passwordInput}
+                                    value={data.password}
+                                    onChange={(e) =>
+                                        setData('password', e.target.value)
+                                    }
+                                    className="mt-1 block w-3/4"
+                                    isFocused
+                                    placeholder="Senha"
+                                />
 
-                        <InputError
-                            message={errors.password}
-                            className="mt-2"
-                        />
+                                <InputError
+                                    message={errors.password}
+                                    className="mt-2"
+                                />
+                            </>
+                        )}
                     </div>
 
                     <div className="mt-6 flex justify-end">

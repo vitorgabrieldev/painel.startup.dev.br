@@ -32,7 +32,7 @@ export default function Edit({ mustVerifyEmail, status, isSocialUser = false }) 
                     )}
 
                     <div className="bg-white p-4 shadow sm:rounded-lg sm:p-8">
-                        <DeleteUserForm className="max-w-xl" />
+                        <DeleteUserForm className="max-w-xl" isSocialUser={isSocialUser} />
                     </div>
 
                     <div className="bg-white p-4 shadow sm:rounded-lg sm:p-8">

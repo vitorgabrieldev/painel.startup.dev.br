@@ -3,8 +3,9 @@ import Dropdown from '@/Components/Dropdown';
 import NavLink from '@/Components/NavLink';
 import ResponsiveNavLink from '@/Components/ResponsiveNavLink';
 import { Link, usePage } from '@inertiajs/react';
-import { useState } from 'react';
-import { FiUser } from 'react-icons/fi';
+import axios from 'axios';
+import { useEffect, useState, useRef } from 'react';
+import { FiBell, FiCheck, FiTrash2, FiUser } from 'react-icons/fi';
 
 export default function AuthenticatedLayout({ header, children }) {
     const user = usePage().props.auth.user;
@@ -14,6 +15,108 @@ export default function AuthenticatedLayout({ header, children }) {
 
     const [showingNavigationDropdown, setShowingNavigationDropdown] =
         useState(false);
+    const [notifications, setNotifications] = useState([]);
+    const [unreadCount, setUnreadCount] = useState(0);
+    const [notifOpen, setNotifOpen] = useState(false);
+    const [notifLoading, setNotifLoading] = useState(false);
+    const notifRef = useRef(null);
+
+    const loadNotifications = async () => {
+        try {
+            const { data } = await axios.get(route('notifications.index'));
+            setNotifications(data.notifications || []);
+            setUnreadCount(data.unread_count || 0);
+        } catch (error) {
+            // ignore
+        }
+    };
+
+    useEffect(() => {
+        loadNotifications();
+        const interval = setInterval(loadNotifications, 30000);
+        return () => clearInterval(interval);
+    }, []);
+
+    useEffect(() => {
+        const handler = (event) => {
+            if (
+                notifRef.current &&
+                !notifRef.current.contains(event.target)
+            ) {
+                setNotifOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handler);
+        return () => document.removeEventListener('mousedown', handler);
+    }, []);
+
+    const markAllRead = async () => {
+        if (notifLoading) return;
+        setNotifLoading(true);
+        try {
+            await axios.post(route('notifications.markAll'));
+            await loadNotifications();
+        } catch (error) {
+            //
+        } finally {
+            setNotifLoading(false);
+        }
+    };
+
+    const deleteAll = async () => {
+        if (notifLoading) return;
+        setNotifLoading(true);
+        try {
+            await axios.delete(route('notifications.deleteAll'));
+            await loadNotifications();
+        } catch (error) {
+            //
+        } finally {
+            setNotifLoading(false);
+        }
+    };
+
+    const markRead = async (id) => {
+        try {
+            await axios.post(route('notifications.read', id));
+            setNotifications((prev) =>
+                prev.map((item) =>
+                    item.id === id ? { ...item, read_at: new Date().toISOString() } : item,
+                ),
+            );
+            setUnreadCount((prev) => Math.max(prev - 1, 0));
+        } catch (error) {
+            //
+        }
+    };
+
+    const deleteOne = async (id) => {
+        try {
+            await axios.delete(route('notifications.delete', id));
+            setNotifications((prev) => prev.filter((item) => item.id !== id));
+        } catch (error) {
+            //
+        }
+    };
+
+    const markInvite = async (notification, accept) => {
+        const inviteId =
+            notification.data?.invite_id || notification.data?.inviteId || notification.data?.id;
+        if (!inviteId) return;
+        try {
+            await axios.post(
+                route(
+                    accept ? 'projects.invites.accept' : 'projects.invites.reject',
+                    inviteId,
+                ),
+            );
+            await markRead(notification.id);
+            setNotifications((prev) => prev.filter((item) => item.id !== notification.id));
+            await loadNotifications();
+        } catch (error) {
+            //
+        }
+    };
 
     return (
         <div className="min-h-screen bg-gray-100">
@@ -43,7 +146,127 @@ export default function AuthenticatedLayout({ header, children }) {
                             </div>
                         </div>
 
-                        <div className="hidden sm:ms-6 sm:flex sm:items-center">
+                        <div className="hidden sm:ms-6 sm:flex sm:items-center gap-4">
+                            <div className="relative" ref={notifRef}>
+                                <button
+                                    type="button"
+                                    className="relative inline-flex h-10 w-10 items-center justify-center rounded-[8px] border border-gray-200 bg-white text-gray-500 transition hover:border-[var(--color-secondary)] hover:text-[var(--color-secondary)]"
+                                    onClick={() => {
+                                        setNotifOpen((prev) => !prev);
+                                        if (!notifOpen) loadNotifications();
+                                    }}
+                                >
+                                    <FiBell className="h-5 w-5" />
+                                    {unreadCount > 0 && (
+                                        <span className="absolute -right-1.5 -top-1.5 min-h-[18px] min-w-[18px] rounded-full bg-red-500 px-1 text-xs font-bold text-white">
+                                            {unreadCount > 9 ? '9+' : unreadCount}
+                                        </span>
+                                    )}
+                                </button>
+                                {notifOpen && (
+                                    <div className="notification-popover">
+                                        <div className="flex items-center justify-between border-b border-gray-200 pb-2">
+                                            <span className="text-sm font-semibold text-gray-800">
+                                                Notificações
+                                            </span>
+                                            <div className="flex items-center gap-2">
+                                                <button
+                                                    type="button"
+                                                    className="notif-action"
+                                                    onClick={markAllRead}
+                                                    disabled={notifLoading}
+                                                >
+                                                    <FiCheck className="h-4 w-4" />
+                                                    <span>Marcar lidas</span>
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    className="notif-action"
+                                                    onClick={deleteAll}
+                                                    disabled={notifLoading}
+                                                >
+                                                    <FiTrash2 className="h-4 w-4" />
+                                                    <span>Limpar</span>
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div className="notif-list">
+                                            {notifications.length === 0 && (
+                                                <div className="notif-empty">
+                                                    Não há nada aqui :\
+                                                </div>
+                                            )}
+                                            {notifications.map((item) => {
+                                                const isInvite = item.type === 'project_invite' || item.data?.type === 'project_invite';
+                                                return (
+                                                    <div
+                                                        key={item.id}
+                                                        className={`notif-item ${
+                                                            item.read_at ? 'is-read' : 'is-unread'
+                                                        }`}
+                                                    >
+                                                        <div className="notif-text">
+                                                            <div className="notif-title">
+                                                                {item.title}
+                                                            </div>
+                                                            {item.message && (
+                                                                <div className="notif-message">
+                                                                    {item.message}
+                                                                </div>
+                                                            )}
+                                                            <div className="notif-meta">
+                                                                {new Date(
+                                                                    item.created_at,
+                                                                ).toLocaleString('pt-BR')}
+                                                            </div>
+                                                            {isInvite && (
+                                                                <div className="notif-invite-actions">
+                                                                    <button
+                                                                        type="button"
+                                                                        className="invite-accept"
+                                                                        onClick={() =>
+                                                                            markInvite(item, true)
+                                                                        }
+                                                                    >
+                                                                        Aceitar
+                                                                    </button>
+                                                                    <button
+                                                                        type="button"
+                                                                        className="invite-reject"
+                                                                        onClick={() =>
+                                                                            markInvite(item, false)
+                                                                        }
+                                                                    >
+                                                                        Recusar
+                                                                    </button>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                        <div className="notif-actions">
+                                                            {!item.read_at && (
+                                                                <button
+                                                                    type="button"
+                                                                    className="notif-dot"
+                                                                    onClick={() => markRead(item.id)}
+                                                                    title="Marcar como lida"
+                                                                />
+                                                            )}
+                                                            <button
+                                                                type="button"
+                                                                className="notif-delete"
+                                                                onClick={() => deleteOne(item.id)}
+                                                                title="Excluir"
+                                                            >
+                                                                <FiTrash2 className="h-4 w-4" />
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
                             <div className="relative ms-3">
                                 <Dropdown>
                                     <Dropdown.Trigger>

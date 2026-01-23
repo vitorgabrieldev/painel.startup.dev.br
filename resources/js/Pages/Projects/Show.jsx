@@ -16,10 +16,14 @@ import {
     Tooltip,
     Tag,
 } from 'antd';
+import InviteButton from '@/Components/InviteButton';
+import aiIcon from '@/assets/ai-icon.svg';
 import {
     FiAlertTriangle,
     FiArrowDown,
     FiArrowUp,
+    FiCheck,
+    FiLayers,
     FiMessageSquare,
     FiClipboard,
     FiClock,
@@ -29,16 +33,49 @@ import {
     FiSettings,
     FiHome,
     FiInfo,
-    FiLayers,
     FiLink,
     FiMonitor,
     FiSearch,
     FiShield,
+    FiX,
     FiCheckSquare,
 } from 'react-icons/fi';
 
 const { TextArea } = Input;
 const SEARCH_HISTORY_KEY = 'project.module.search.history';
+const renderInlineText = (text) =>
+    text.split(/(\*\*[^*]+\*\*|\*[^*]+\*)/g).map((part, index) => {
+        if (!part) return null;
+        if (part.startsWith('**') && part.endsWith('**')) {
+            return (
+                <strong key={`bold-${index}`}>{part.slice(2, -2)}</strong>
+            );
+        }
+        if (part.startsWith('*') && part.endsWith('*')) {
+            return (
+                <span key={`em-${index}`} className="ai-chat-em">
+                    {part.slice(1, -1)}
+                </span>
+            );
+        }
+        return <span key={`text-${index}`}>{part}</span>;
+    });
+
+const renderChatText = (text) =>
+    text.split('\n').map((line, index, lines) => (
+        <span key={`line-${index}`}>
+            {renderInlineText(line)}
+            {index < lines.length - 1 && <br />}
+        </span>
+    ));
+
+const renderRichValue = (value, fallback) => {
+    // Converte objetos/arrays/JSON para texto plano e preserva **negrito** e *itálico*
+    const plain = toPlainText(value);
+    const text = normalizeText(plain);
+    if (!text) return <span className="text-gray-400">{fallback}</span>;
+    return <span className="whitespace-pre-line">{renderChatText(text)}</span>;
+};
 const InfoLabel = ({ text, tooltip }) => (
     <div className="flex items-center gap-2">
         <span>{text}</span>
@@ -166,6 +203,59 @@ const formatStackStatus = (status) => {
     return status ? status.charAt(0).toUpperCase() + status.slice(1) : '—';
 };
 
+const formatPatternStatus = (status) => {
+    if (status === 'adopted') return 'Adotado';
+    if (status === 'evaluating') return 'Avaliando';
+    if (status === 'deprecated') return 'Depreciado';
+    return status ? status.charAt(0).toUpperCase() + status.slice(1) : '—';
+};
+
+const formatPriority = (priority) => {
+    if (priority === 'low') return 'Baixa';
+    if (priority === 'medium') return 'Média';
+    if (priority === 'high') return 'Alta';
+    return priority ? priority.charAt(0).toUpperCase() + priority.slice(1) : '—';
+};
+
+const moduleLabels = {
+    stack: 'Stack técnica',
+    patterns: 'Padrões',
+    integrations: 'Integrações',
+    nfrs: 'NFRs & Qualidade',
+};
+
+const formatSuggestion = (module, item = {}) => {
+    if (module === 'stack') {
+        return {
+            title: item.name || 'Stack',
+            subtitle: [item.category, item.version].filter(Boolean).join(' · '),
+            meta: item.status ? formatStackStatus(item.status) : null,
+        };
+    }
+    if (module === 'patterns') {
+        return {
+            title: item.name || 'Padrão',
+            subtitle: item.rationale || item.constraints || '',
+            meta: item.status ? formatPatternStatus(item.status) : null,
+        };
+    }
+    if (module === 'integrations') {
+        return {
+            title: item.label || 'Integração',
+            subtitle: item.url || '',
+            meta: item.type || null,
+        };
+    }
+    if (module === 'nfrs') {
+        return {
+            title: item.category || 'NFR',
+            subtitle: [item.metric, item.target].filter(Boolean).join(' · '),
+            meta: item.priority ? formatPriority(item.priority) : null,
+        };
+    }
+    return { title: 'Item', subtitle: '', meta: null };
+};
+
 export default function Show({ project: initialProject }) {
     const [project, setProject] = useState(initialProject);
     const [loading, setLoading] = useState(false);
@@ -179,6 +269,17 @@ export default function Show({ project: initialProject }) {
     const [aiInput, setAiInput] = useState('');
     const [aiLoading, setAiLoading] = useState(false);
     const [aiError, setAiError] = useState('');
+    const [projectSettingsOpen, setProjectSettingsOpen] = useState(false);
+    const [aiModuleLoading, setAiModuleLoading] = useState({
+        stack: false,
+        patterns: false,
+        integrations: false,
+        nfrs: false,
+    });
+    const [aiSuggestionsOpen, setAiSuggestionsOpen] = useState(false);
+    const [aiSuggestionsModule, setAiSuggestionsModule] = useState(null);
+    const [aiSuggestions, setAiSuggestions] = useState([]);
+    const [aiSuggestionProcessing, setAiSuggestionProcessing] = useState(null);
     const aiChatRef = useRef(null);
     const [aiContext, setAiContext] = useState({
         overview: true,
@@ -266,13 +367,14 @@ export default function Show({ project: initialProject }) {
 
     useEffect(() => {
         setProject(initialProject);
+        if (!editingOverview) return;
         overviewForm.setFieldsValue({
             overview: toPlainText(initialProject.overview),
             purpose: toPlainText(initialProject.purpose),
             scope: toPlainText(initialProject.scope),
             target_users: toPlainText(initialProject.target_users),
         });
-    }, [initialProject, overviewForm]);
+    }, [initialProject, overviewForm, editingOverview]);
 
     useEffect(() => {
         const media = window.matchMedia('(max-width: 1023px)');
@@ -323,6 +425,105 @@ export default function Show({ project: initialProject }) {
         } finally {
             setAiLoading(false);
         }
+    };
+
+    const handleAiGenerate = async (module) => {
+        if (aiModuleLoading[module]) return;
+        setAiModuleLoading((prev) => ({ ...prev, [module]: true }));
+        try {
+            const { data } = await axios.post(
+                route('projects.ai.generate', project.id),
+                { module, dry_run: true },
+            );
+            const items = data?.items || [];
+            setAiSuggestionsModule(module);
+            setAiSuggestions(items);
+            setAiSuggestionsOpen(true);
+            if (!items.length) {
+                messageApi.info('Nada novo para sugerir.');
+            }
+        } catch (error) {
+            messageApi.error('Não foi possível gerar agora.');
+        } finally {
+            setAiModuleLoading((prev) => ({ ...prev, [module]: false }));
+        }
+    };
+
+    const handleAiAccept = async (module, item, index) => {
+        if (aiSuggestionProcessing !== null) return;
+        setAiSuggestionProcessing({ index, action: 'accept' });
+        try {
+            let routeName = '';
+            let payload = {};
+            if (module === 'stack') {
+                routeName = 'projects.stack.store';
+                payload = {
+                    category: item.category || 'Geral',
+                    name: item.name,
+                    version: item.version || null,
+                    rationale: item.rationale || null,
+                    status: item.status || 'chosen',
+                    vendor_url: item.vendor_url || null,
+                    constraints: item.constraints || null,
+                };
+            } else if (module === 'patterns') {
+                routeName = 'projects.patterns.store';
+                payload = {
+                    name: item.name,
+                    rationale: item.rationale || null,
+                    constraints: item.constraints || null,
+                    references: item.references || null,
+                    status: item.status || 'adopted',
+                };
+            } else if (module === 'integrations') {
+                routeName = 'projects.integrations.store';
+                payload = {
+                    type: item.type || 'Link',
+                    label: item.label,
+                    url: item.url,
+                    notes: item.notes || null,
+                };
+            } else if (module === 'nfrs') {
+                routeName = 'projects.nfrs.store';
+                payload = {
+                    category: item.category,
+                    metric: item.metric || null,
+                    target: item.target || null,
+                    priority: item.priority || 'medium',
+                    rationale: item.rationale || null,
+                    current_assessment: item.current_assessment || null,
+                };
+            }
+
+            const { data } = await axios.post(
+                route(routeName, project.id),
+                payload,
+            );
+            if (data) {
+                setProject(data);
+                setAiSuggestions((prev) => {
+                    const next = prev.filter((_, idx) => idx !== index);
+                    if (!next.length) setAiSuggestionsOpen(false);
+                    return next;
+                });
+                messageApi.success('Item adicionado.');
+            }
+        } catch (error) {
+            messageApi.error('Não foi possível adicionar.');
+        } finally {
+            setAiSuggestionProcessing(null);
+        }
+    };
+
+    const handleAiReject = (index) => {
+        if (aiSuggestionProcessing !== null) return;
+        setAiSuggestionProcessing({ index, action: 'reject' });
+        setAiSuggestions((prev) => {
+            const next = prev.filter((_, idx) => idx !== index);
+            if (!next.length) setAiSuggestionsOpen(false);
+            return next;
+        });
+        setTimeout(() => setAiSuggestionProcessing(null), 0);
     };
 
     useEffect(() => {
@@ -724,7 +925,7 @@ export default function Show({ project: initialProject }) {
                     placeholder={placeholder}
                     className="flex-1"
                     variant="borderless"
-                    showArrow={false}
+                    suffixIcon={null}
                     onChange={(value) => {
                         setTagFilters((prev) => ({ ...prev, [moduleKey]: value }));
                         updateHistory(moduleKey, value);
@@ -830,26 +1031,25 @@ export default function Show({ project: initialProject }) {
                         </div>
                     </div>
                     <div className="flex items-center gap-3">
-                        <label className="cursor-pointer rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-600 transition hover:border-[var(--color-secondary)] hover:text-[var(--color-secondary)]">
-                            {avatarProcessing ? 'Enviando...' : 'Trocar avatar'}
-                            <input
-                                type="file"
-                                accept="image/*"
-                                disabled={avatarProcessing}
-                                className="hidden"
-                                onChange={(event) =>
-                                    handleProjectAvatar(event.target.files?.[0])
-                                }
-                            />
-                        </label>
                         <button
                             type="button"
-                            onClick={() => setAiConfigOpen(true)}
+                            onClick={() => setProjectSettingsOpen(true)}
                             className="flex h-10 w-10 items-center justify-center rounded-[6px] border border-gray-200 text-gray-500 transition hover:border-[var(--color-secondary)] hover:text-[var(--color-secondary)]"
-                            aria-label="Configurar contexto da IA"
+                            aria-label="Configurações do projeto"
                         >
                             <FiSettings className="h-5 w-5" />
                         </button>
+                        <InviteButton projectId={project.id} />
+                        <Tooltip title="Contexto da IA">
+                            <button
+                                type="button"
+                                onClick={() => setAiConfigOpen(true)}
+                                className="flex h-10 w-10 items-center justify-center rounded-[6px] border border-gray-200 text-gray-500 transition hover:border-[var(--color-secondary)] hover:text-[var(--color-secondary)]"
+                                aria-label="Configurar contexto da IA"
+                            >
+                                <FiLayers className="h-5 w-5" />
+                            </button>
+                        </Tooltip>
                         <button
                             type="button"
                             onClick={() => setAiChatOpen(true)}
@@ -889,7 +1089,7 @@ export default function Show({ project: initialProject }) {
 
                     <div className="flex flex-col gap-4">
                         <Tabs
-                            tabPosition="left"
+                            tabPlacement="left"
                             activeKey={activeTab}
                             onChange={setActiveTab}
                             tabBarStyle={{ width: 240 }}
@@ -924,21 +1124,11 @@ export default function Show({ project: initialProject }) {
                                             }
                                         >
                                             <p className="font-semibold text-gray-800">Sobre</p>
-                                            <p>
-                                                {renderPlainValue(
-                                                    project.overview,
-                                                    'Sem resumo ainda.',
-                                                )}
-                                            </p>
+                                            <p>{renderRichValue(project.overview, 'Sem resumo ainda.')}</p>
                                             <p className="mt-3 font-semibold text-gray-800">Propósito</p>
-                                            <p>
-                                                {renderPlainValue(
-                                                    project.purpose,
-                                                    'Sem propósito definido.',
-                                                )}
-                                            </p>
+                                            <p>{renderRichValue(project.purpose, 'Sem propósito definido.')}</p>
                                             <p className="mt-3 font-semibold text-gray-800">Escopo</p>
-                                            <div>{renderScopeValue(project.scope)}</div>
+                                            <div>{renderRichValue(project.scope, 'Sem escopo definido.')}</div>
                                             <div className="mt-3 text-xs text-gray-500">
                                                 <span className="font-semibold text-gray-600">
                                                     Público-alvo:
@@ -967,17 +1157,40 @@ export default function Show({ project: initialProject }) {
                                             title="Stack técnica"
                                             titleTooltip="Tecnologias do produto. Ex.: React, Laravel, PostgreSQL, Redis, AWS."
                                             action={
-                                                <PrimaryButton
-                                                    variant="red"
-                                                    className="!text-white"
-                                                    onClick={() => {
-                                                        stackForm.resetFields();
-                                                        setEditingStack(null);
-                                                        setStackModal(true);
-                                                    }}
-                                                >
-                                                    Adicionar
-                                                </PrimaryButton>
+                                                <div className="flex items-center gap-2">
+                                                    <Tooltip title="Gerar com IA">
+                                                        <button
+                                                            type="button"
+                                                            className={`ai-generate-button ${
+                                                                aiModuleLoading.stack ? 'is-loading' : ''
+                                                            }`}
+                                                            onClick={() => handleAiGenerate('stack')}
+                                                            disabled={aiModuleLoading.stack}
+                                                            aria-label="Gerar stack com IA"
+                                                            aria-busy={aiModuleLoading.stack}
+                                                        >
+                                                            {aiModuleLoading.stack ? (
+                                                                <span className="ai-generate-spinner" />
+                                                            ) : (
+                                                                <img src={aiIcon} alt="AI" />
+                                                            )}
+                                                            <span className="ai-generate-label">
+                                                                Safio Creator AI
+                                                            </span>
+                                                        </button>
+                                                    </Tooltip>
+                                                    <PrimaryButton
+                                                        variant="red"
+                                                        className="!text-white"
+                                                        onClick={() => {
+                                                            stackForm.resetFields();
+                                                            setEditingStack(null);
+                                                            setStackModal(true);
+                                                        }}
+                                                    >
+                                                        Adicionar
+                                                    </PrimaryButton>
+                                                </div>
                                             }
                                             subtitle="Linguagens, frameworks, bancos, infra e ferramentas."
                                         >
@@ -1069,16 +1282,39 @@ export default function Show({ project: initialProject }) {
                                             title="Padrões de arquitetura"
                                             titleTooltip="Padrões e abordagens. Ex.: MVC, Clean Architecture, Event-driven, CQRS."
                                             action={
-                                                <PrimaryButton
-                                                    variant="red"
-                                                    className="!text-white"
-                                                    onClick={() => {
-                                                        patternForm.resetFields();
-                                                        setPatternModal(true);
-                                                    }}
-                                                >
-                                                    Adicionar
-                                                </PrimaryButton>
+                                                <div className="flex items-center gap-2">
+                                                    <Tooltip title="Gerar com IA">
+                                                        <button
+                                                            type="button"
+                                                            className={`ai-generate-button ${
+                                                                aiModuleLoading.patterns ? 'is-loading' : ''
+                                                            }`}
+                                                            onClick={() => handleAiGenerate('patterns')}
+                                                            disabled={aiModuleLoading.patterns}
+                                                            aria-label="Gerar padrões com IA"
+                                                            aria-busy={aiModuleLoading.patterns}
+                                                        >
+                                                            {aiModuleLoading.patterns ? (
+                                                                <span className="ai-generate-spinner" />
+                                                            ) : (
+                                                                <img src={aiIcon} alt="AI" />
+                                                            )}
+                                                            <span className="ai-generate-label">
+                                                                Safio Creator AI
+                                                            </span>
+                                                        </button>
+                                                    </Tooltip>
+                                                    <PrimaryButton
+                                                        variant="red"
+                                                        className="!text-white"
+                                                        onClick={() => {
+                                                            patternForm.resetFields();
+                                                            setPatternModal(true);
+                                                        }}
+                                                    >
+                                                        Adicionar
+                                                    </PrimaryButton>
+                                                </div>
                                             }
                                             subtitle="Padrões arquiteturais e estado de adoção."
                                         >
@@ -1093,28 +1329,27 @@ export default function Show({ project: initialProject }) {
                                                     dataSource={filterAndSort(patterns, 'patterns')}
                                                     renderItem={(pattern) => (
                                                         <List.Item
-                                                            className="!w-full p-0"
-                                                            actions={[
-                                                                <PrimaryButton
-                                                                    key="edit"
-                                                                    variant="outlineRed"
-                                                                    className="!px-3 !py-1"
-                                                                    onClick={() => {
-                                                                        patternForm.setFieldsValue(pattern);
-                                                                        setPatternModal(true);
-                                                                    }}
-                                                                >
-                                                                    <span className="inline-flex items-center gap-1.5">
-                                                                        <FiEdit2 className="h-3.5 w-3.5" />
-                                                                        Editar
-                                                                    </span>
-                                                                </PrimaryButton>,
-                                                            ]}
+                                                            className="!w-full !px-0 !py-0"
+                                                            role="button"
+                                                            tabIndex={0}
+                                                            onClick={() => {
+                                                                patternForm.setFieldsValue(pattern);
+                                                                setPatternModal(true);
+                                                            }}
+                                                            onKeyDown={(event) => {
+                                                                if (event.key === 'Enter' || event.key === ' ') {
+                                                                    event.preventDefault();
+                                                                    patternForm.setFieldsValue(pattern);
+                                                                    setPatternModal(true);
+                                                                }
+                                                            }}
                                                         >
                                                             <div className="w-full rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm text-gray-800">
                                                                 <div className="flex items-center justify-between">
                                                                     <span className="font-semibold">{pattern.name}</span>
-                                                                    <Tag color="purple">{pattern.status}</Tag>
+                                                                    <Tag color="purple">
+                                                                        {formatPatternStatus(pattern.status)}
+                                                                    </Tag>
                                                                 </div>
                                                                 {pattern.rationale && (
                                                                     <div className="mt-1 text-xs text-gray-600">
@@ -1182,23 +1417,20 @@ export default function Show({ project: initialProject }) {
                                                     dataSource={filterAndSort(risks, 'risks')}
                                                     renderItem={(risk) => (
                                                         <List.Item
-                                                            className="!w-full p-0"
-                                                            actions={[
-                                                                <PrimaryButton
-                                                                    key="edit"
-                                                                    variant="outlineRed"
-                                                                    className="!px-3 !py-1"
-                                                                    onClick={() => {
-                                                                        riskForm.setFieldsValue(risk);
-                                                                        setRiskModal(true);
-                                                                    }}
-                                                                >
-                                                                    <span className="inline-flex items-center gap-1.5">
-                                                                        <FiEdit2 className="h-3.5 w-3.5" />
-                                                                        Editar
-                                                                    </span>
-                                                                </PrimaryButton>,
-                                                            ]}
+                                                            className="!w-full !px-0 !py-0"
+                                                            role="button"
+                                                            tabIndex={0}
+                                                            onClick={() => {
+                                                                riskForm.setFieldsValue(risk);
+                                                                setRiskModal(true);
+                                                            }}
+                                                            onKeyDown={(event) => {
+                                                                if (event.key === 'Enter' || event.key === ' ') {
+                                                                    event.preventDefault();
+                                                                    riskForm.setFieldsValue(risk);
+                                                                    setRiskModal(true);
+                                                                }
+                                                            }}
                                                         >
                                                             <div className="w-full rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm text-gray-800">
                                                                 <div className="flex flex-wrap items-center justify-between gap-2">
@@ -1244,16 +1476,39 @@ export default function Show({ project: initialProject }) {
                                             title="Integrações"
                                             titleTooltip="Integrações externas e links úteis. Ex.: GitHub, Jira, Stripe, Sentry."
                                             action={
-                                                <PrimaryButton
-                                                    variant="red"
-                                                    className="!text-white"
-                                                    onClick={() => {
-                                                        integrationForm.resetFields();
-                                                        setIntegrationModal(true);
-                                                    }}
-                                                >
-                                                    Adicionar
-                                                </PrimaryButton>
+                                                <div className="flex items-center gap-2">
+                                                    <Tooltip title="Gerar com IA">
+                                                        <button
+                                                            type="button"
+                                                            className={`ai-generate-button ${
+                                                                aiModuleLoading.integrations ? 'is-loading' : ''
+                                                            }`}
+                                                            onClick={() => handleAiGenerate('integrations')}
+                                                            disabled={aiModuleLoading.integrations}
+                                                            aria-label="Gerar integrações com IA"
+                                                            aria-busy={aiModuleLoading.integrations}
+                                                        >
+                                                            {aiModuleLoading.integrations ? (
+                                                                <span className="ai-generate-spinner" />
+                                                            ) : (
+                                                                <img src={aiIcon} alt="AI" />
+                                                            )}
+                                                            <span className="ai-generate-label">
+                                                                Safio Creator AI
+                                                            </span>
+                                                        </button>
+                                                    </Tooltip>
+                                                    <PrimaryButton
+                                                        variant="red"
+                                                        className="!text-white"
+                                                        onClick={() => {
+                                                            integrationForm.resetFields();
+                                                            setIntegrationModal(true);
+                                                        }}
+                                                    >
+                                                        Adicionar
+                                                    </PrimaryButton>
+                                                </div>
                                             }
                                             subtitle="Links para repositórios, issues, PRs e docs."
                                         >
@@ -1268,23 +1523,20 @@ export default function Show({ project: initialProject }) {
                                                     dataSource={filterAndSort(integrations, 'integrations')}
                                                     renderItem={(link) => (
                                                         <List.Item
-                                                            className="!w-full p-0"
-                                                            actions={[
-                                                                <PrimaryButton
-                                                                    key="edit"
-                                                                    variant="outlineRed"
-                                                                    className="!px-3 !py-1"
-                                                                    onClick={() => {
-                                                                        integrationForm.setFieldsValue(link);
-                                                                        setIntegrationModal(true);
-                                                                    }}
-                                                                >
-                                                                    <span className="inline-flex items-center gap-1.5">
-                                                                        <FiEdit2 className="h-3.5 w-3.5" />
-                                                                        Editar
-                                                                    </span>
-                                                                </PrimaryButton>,
-                                                            ]}
+                                                            className="!w-full !px-0 !py-0"
+                                                            role="button"
+                                                            tabIndex={0}
+                                                            onClick={() => {
+                                                                integrationForm.setFieldsValue(link);
+                                                                setIntegrationModal(true);
+                                                            }}
+                                                            onKeyDown={(event) => {
+                                                                if (event.key === 'Enter' || event.key === ' ') {
+                                                                    event.preventDefault();
+                                                                    integrationForm.setFieldsValue(link);
+                                                                    setIntegrationModal(true);
+                                                                }
+                                                            }}
                                                         >
                                                             <div className="w-full rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm text-gray-800">
                                                                 <div className="flex items-center justify-between">
@@ -1350,23 +1602,20 @@ export default function Show({ project: initialProject }) {
                                                     dataSource={filterAndSort(governance, 'governance')}
                                                     renderItem={(rule) => (
                                                         <List.Item
-                                                            className="!w-full p-0"
-                                                            actions={[
-                                                                <PrimaryButton
-                                                                    key="edit"
-                                                                    variant="outlineRed"
-                                                                    className="!px-3 !py-1"
-                                                                    onClick={() => {
-                                                                        govForm.setFieldsValue(rule);
-                                                                        setGovModal(true);
-                                                                    }}
-                                                                >
-                                                                    <span className="inline-flex items-center gap-1.5">
-                                                                        <FiEdit2 className="h-3.5 w-3.5" />
-                                                                        Editar
-                                                                    </span>
-                                                                </PrimaryButton>,
-                                                            ]}
+                                                            className="!w-full !px-0 !py-0"
+                                                            role="button"
+                                                            tabIndex={0}
+                                                            onClick={() => {
+                                                                govForm.setFieldsValue(rule);
+                                                                setGovModal(true);
+                                                            }}
+                                                            onKeyDown={(event) => {
+                                                                if (event.key === 'Enter' || event.key === ' ') {
+                                                                    event.preventDefault();
+                                                                    govForm.setFieldsValue(rule);
+                                                                    setGovModal(true);
+                                                                }
+                                                            }}
                                                         >
                                                             <div className="w-full rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm text-gray-800">
                                                                 <div className="flex items-center justify-between">
@@ -1413,16 +1662,39 @@ export default function Show({ project: initialProject }) {
                                             title="NFRs & Qualidade"
                                             titleTooltip="Metas não funcionais. Ex.: 99,9% uptime, p95 < 300ms, LGPD."
                                             action={
-                                                <PrimaryButton
-                                                    variant="red"
-                                                    className="!text-white"
-                                                    onClick={() => {
-                                                        nfrForm.resetFields();
-                                                        setNfrModal(true);
-                                                    }}
-                                                >
-                                                    Adicionar
-                                                </PrimaryButton>
+                                                <div className="flex items-center gap-2">
+                                                    <Tooltip title="Gerar com IA">
+                                                        <button
+                                                            type="button"
+                                                            className={`ai-generate-button ${
+                                                                aiModuleLoading.nfrs ? 'is-loading' : ''
+                                                            }`}
+                                                            onClick={() => handleAiGenerate('nfrs')}
+                                                            disabled={aiModuleLoading.nfrs}
+                                                            aria-label="Gerar NFRs com IA"
+                                                            aria-busy={aiModuleLoading.nfrs}
+                                                        >
+                                                            {aiModuleLoading.nfrs ? (
+                                                                <span className="ai-generate-spinner" />
+                                                            ) : (
+                                                                <img src={aiIcon} alt="AI" />
+                                                            )}
+                                                            <span className="ai-generate-label">
+                                                                Safio Creator AI
+                                                            </span>
+                                                        </button>
+                                                    </Tooltip>
+                                                    <PrimaryButton
+                                                        variant="red"
+                                                        className="!text-white"
+                                                        onClick={() => {
+                                                            nfrForm.resetFields();
+                                                            setNfrModal(true);
+                                                        }}
+                                                    >
+                                                        Adicionar
+                                                    </PrimaryButton>
+                                                </div>
                                             }
                                             subtitle="Metas não-funcionais e qualidade."
                                         >
@@ -1437,23 +1709,20 @@ export default function Show({ project: initialProject }) {
                                                     dataSource={filterAndSort(nfrs, 'nfrs', 'priority')}
                                                     renderItem={(nfr) => (
                                                         <List.Item
-                                                            className="!w-full p-0"
-                                                            actions={[
-                                                                <PrimaryButton
-                                                                    key="edit"
-                                                                    variant="outlineRed"
-                                                                    className="!px-3 !py-1"
-                                                                    onClick={() => {
-                                                                        nfrForm.setFieldsValue(nfr);
-                                                                        setNfrModal(true);
-                                                                    }}
-                                                                >
-                                                                    <span className="inline-flex items-center gap-1.5">
-                                                                        <FiEdit2 className="h-3.5 w-3.5" />
-                                                                        Editar
-                                                                    </span>
-                                                                </PrimaryButton>,
-                                                            ]}
+                                                            className="!w-full !px-0 !py-0"
+                                                            role="button"
+                                                            tabIndex={0}
+                                                            onClick={() => {
+                                                                nfrForm.setFieldsValue(nfr);
+                                                                setNfrModal(true);
+                                                            }}
+                                                            onKeyDown={(event) => {
+                                                                if (event.key === 'Enter' || event.key === ' ') {
+                                                                    event.preventDefault();
+                                                                    nfrForm.setFieldsValue(nfr);
+                                                                    setNfrModal(true);
+                                                                }
+                                                            }}
                                                         >
                                                             <div className="w-full rounded-lg border border-gray-200 bg-gray-50 p-3">
                                                                 <div className="flex items-center justify-between text-sm font-semibold text-gray-800">
@@ -1521,23 +1790,20 @@ export default function Show({ project: initialProject }) {
                                                     dataSource={filterAndSort(decisions, 'decisions')}
                                                     renderItem={(adr) => (
                                                         <List.Item
-                                                            className="!w-full p-0"
-                                                            actions={[
-                                                                <PrimaryButton
-                                                                    key="edit"
-                                                                    variant="outlineRed"
-                                                                    className="!px-3 !py-1"
-                                                                    onClick={() => {
-                                                                        decisionForm.setFieldsValue(adr);
-                                                                        setDecisionModal(true);
-                                                                    }}
-                                                                >
-                                                                    <span className="inline-flex items-center gap-1.5">
-                                                                        <FiEdit2 className="h-3.5 w-3.5" />
-                                                                        Editar
-                                                                    </span>
-                                                                </PrimaryButton>,
-                                                            ]}
+                                                            className="!w-full !px-0 !py-0"
+                                                            role="button"
+                                                            tabIndex={0}
+                                                            onClick={() => {
+                                                                decisionForm.setFieldsValue(adr);
+                                                                setDecisionModal(true);
+                                                            }}
+                                                            onKeyDown={(event) => {
+                                                                if (event.key === 'Enter' || event.key === ' ') {
+                                                                    event.preventDefault();
+                                                                    decisionForm.setFieldsValue(adr);
+                                                                    setDecisionModal(true);
+                                                                }
+                                                            }}
                                                         >
                                                             <div className="w-full rounded-lg border border-gray-200 bg-gray-50 p-3">
                                                                 <div className="flex items-center justify-between text-sm font-semibold text-gray-800">
@@ -1579,7 +1845,7 @@ export default function Show({ project: initialProject }) {
                 }
                 width="60%"
                 centered
-                destroyOnClose
+                destroyOnHidden
                 className="project-edit-modal"
             >
                 <Form
@@ -1630,7 +1896,7 @@ export default function Show({ project: initialProject }) {
                 title={editingStack ? 'Editar stack' : 'Adicionar stack'}
                 width="60%"
                 centered
-                destroyOnClose
+                destroyOnHidden
                 className="project-edit-modal"
             >
                 <Form
@@ -1735,7 +2001,7 @@ export default function Show({ project: initialProject }) {
                 title="Adicionar padrão de arquitetura"
                 width="60%"
                 centered
-                destroyOnClose
+                destroyOnHidden
                 className="project-edit-modal"
             >
                 <Form
@@ -1815,7 +2081,7 @@ export default function Show({ project: initialProject }) {
                 title="Adicionar risco"
                 width="60%"
                 centered
-                destroyOnClose
+                destroyOnHidden
                 className="project-edit-modal"
             >
                 <Form
@@ -1914,7 +2180,7 @@ export default function Show({ project: initialProject }) {
                 title="Adicionar integração"
                 width="60%"
                 centered
-                destroyOnClose
+                destroyOnHidden
                 className="project-edit-modal"
             >
                 <Form
@@ -1979,7 +2245,7 @@ export default function Show({ project: initialProject }) {
                 title="Adicionar regra de governança"
                 width="60%"
                 centered
-                destroyOnClose
+                destroyOnHidden
                 className="project-edit-modal"
             >
                 <Form
@@ -2057,7 +2323,7 @@ export default function Show({ project: initialProject }) {
                 title="Adicionar NFR"
                 width="60%"
                 centered
-                destroyOnClose
+                destroyOnHidden
                 className="project-edit-modal"
             >
                 <Form
@@ -2170,7 +2436,7 @@ export default function Show({ project: initialProject }) {
                 title="Adicionar decisão (ADR)"
                 width="60%"
                 centered
-                destroyOnClose
+                destroyOnHidden
                 className="project-edit-modal"
             >
                 <Form
@@ -2242,39 +2508,34 @@ export default function Show({ project: initialProject }) {
             onCancel={() => setAiChatOpen(false)}
             footer={null}
             title="Safio Creator AI"
-            width={560}
+            width={720}
             centered
-            destroyOnClose
+            destroyOnHidden
         >
-            <div className="flex h-[520px] flex-col gap-3">
+            <div className="flex h-[640px] flex-col gap-3">
                 <div
                     ref={aiChatRef}
                     className="flex-1 space-y-3 overflow-y-auto rounded-xl border border-gray-200 bg-white p-4"
                 >
-                    {aiMessages.length === 0 && !aiLoading && (
-                        <div className="rounded-lg border border-dashed border-gray-200 bg-gray-50 p-3 text-xs text-gray-500">
-                            Faça perguntas sobre o projeto e receba sugestões rápidas.
-                        </div>
-                    )}
                     {aiMessages.map((item, index) => (
                         <div
                             key={`${item.role}-${index}`}
                             className={`flex ${item.role === 'user' ? 'justify-end' : 'justify-start'}`}
                         >
                             <div
-                                className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm ${
+                                className={`ai-chat-bubble max-w-[85%] rounded-2xl px-4 py-3 text-sm ${
                                     item.role === 'user'
-                                        ? 'bg-[var(--color-primary)] text-white'
-                                        : 'bg-[var(--color-surface-2)] text-[var(--color-dark)]'
+                                        ? 'ai-chat-bubble-user bg-[var(--color-primary)] text-white'
+                                        : 'ai-chat-bubble-assistant bg-[var(--color-surface-2)] text-[var(--color-dark)]'
                                 }`}
                             >
-                                {item.content}
+                                {renderChatText(item.content)}
                             </div>
                         </div>
                     ))}
                     {aiLoading && (
                         <div className="flex justify-start">
-                            <div className="rounded-2xl bg-[var(--color-surface-2)] px-4 py-3 text-sm text-gray-500">
+                            <div className="ai-chat-bubble ai-chat-bubble-assistant rounded-2xl bg-[var(--color-surface-2)] px-4 py-3 text-sm text-gray-500">
                                 Digitando...
                             </div>
                         </div>
@@ -2295,18 +2556,62 @@ export default function Show({ project: initialProject }) {
                         onChange={(event) => setAiInput(event.target.value)}
                         placeholder="Pergunte algo sobre o projeto..."
                         disabled={aiLoading}
+                        className="flex-1 h-12"
                     />
-                    <PrimaryButton
-                        variant="red"
+                    <button
                         type="submit"
-                        className="!text-white"
-                        loading={aiLoading}
+                        disabled={aiLoading}
+                        aria-label="Enviar mensagem"
+                        className="flex min-h-12 min-w-12 items-center justify-center rounded-full bg-[var(--color-secondary)] text-white shadow-md transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
                     >
-                        Enviar
-                    </PrimaryButton>
+                        <FiArrowUp className="h-5 w-5" />
+                    </button>
                 </form>
             </div>
         </Modal>
+
+            <Modal
+                open={projectSettingsOpen}
+                onCancel={() => setProjectSettingsOpen(false)}
+                footer={null}
+                title="Configurações do projeto"
+                width={420}
+                centered
+                destroyOnHidden
+            >
+                <div className="space-y-4">
+                    <div>
+                        <p className="text-sm text-gray-600">
+                            Atualize o avatar do projeto.
+                        </p>
+                        <div className="mt-3 flex items-center gap-3">
+                            <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-lg border border-gray-200 bg-[var(--color-surface-2)] text-sm font-semibold text-[var(--color-dark)]">
+                                {avatarUrl ? (
+                                    <img
+                                        src={avatarUrl}
+                                        alt={`Avatar do projeto ${project.name}`}
+                                        className="h-full w-full object-cover"
+                                    />
+                                ) : (
+                                    <span>{projectInitial}</span>
+                                )}
+                            </div>
+                            <label className="cursor-pointer rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-600 transition hover:border-[var(--color-secondary)] hover:text-[var(--color-secondary)]">
+                                {avatarProcessing ? 'Enviando...' : 'Trocar avatar'}
+                                <input
+                                    type="file"
+                                    accept="image/*"
+                                    disabled={avatarProcessing}
+                                    className="hidden"
+                                    onChange={(event) =>
+                                        handleProjectAvatar(event.target.files?.[0])
+                                    }
+                                />
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </Modal>
 
             <Modal
                 open={aiConfigOpen}
@@ -2315,7 +2620,7 @@ export default function Show({ project: initialProject }) {
                 title="Contexto da IA"
                 width={520}
                 centered
-                destroyOnClose
+                destroyOnHidden
             >
                 <div className="space-y-4">
                     <p className="text-sm text-gray-600">
@@ -2323,162 +2628,126 @@ export default function Show({ project: initialProject }) {
                         sobre este projeto.
                     </p>
                 <div className="ai-context-grid grid gap-3 sm:grid-cols-2">
-                    <div className="ai-context-option">
-                        <Checkbox
-                            checked={aiContext.overview}
-                            onChange={(e) =>
-                                setAiContext((prev) => ({
-                                    ...prev,
-                                    overview: e.target.checked,
-                                }))
-                            }
-                        >
-                            Resumo
-                        </Checkbox>
-                    </div>
-                    <div className="ai-context-option">
-                        <Checkbox
-                            checked={aiContext.purpose}
-                            onChange={(e) =>
-                                setAiContext((prev) => ({
-                                    ...prev,
-                                    purpose: e.target.checked,
-                                }))
-                            }
-                        >
-                            Missão/Propósito
-                        </Checkbox>
-                    </div>
-                    <div className="ai-context-option">
-                        <Checkbox
-                            checked={aiContext.scope}
-                            onChange={(e) =>
-                                setAiContext((prev) => ({
-                                    ...prev,
-                                    scope: e.target.checked,
-                                }))
-                            }
-                        >
-                            Escopo
-                        </Checkbox>
-                    </div>
-                    <div className="ai-context-option">
-                        <Checkbox
-                            checked={aiContext.targetUsers}
-                            onChange={(e) =>
-                                setAiContext((prev) => ({
-                                    ...prev,
-                                    targetUsers: e.target.checked,
-                                }))
-                            }
-                        >
-                            Público-alvo
-                        </Checkbox>
-                    </div>
-                    <div className="ai-context-option">
-                        <Checkbox
-                            checked={aiContext.stack}
-                            onChange={(e) =>
-                                setAiContext((prev) => ({
-                                    ...prev,
-                                    stack: e.target.checked,
-                                }))
-                            }
-                        >
-                            Stack técnica
-                        </Checkbox>
-                    </div>
-                    <div className="ai-context-option">
-                        <Checkbox
-                            checked={aiContext.patterns}
-                            onChange={(e) =>
-                                setAiContext((prev) => ({
-                                    ...prev,
-                                    patterns: e.target.checked,
-                                }))
-                            }
-                        >
-                            Padrões
-                        </Checkbox>
-                    </div>
-                    <div className="ai-context-option">
-                        <Checkbox
-                            checked={aiContext.risks}
-                            onChange={(e) =>
-                                setAiContext((prev) => ({
-                                    ...prev,
-                                    risks: e.target.checked,
-                                }))
-                            }
-                        >
-                            Riscos
-                        </Checkbox>
-                    </div>
-                    <div className="ai-context-option">
-                        <Checkbox
-                            checked={aiContext.integrations}
-                            onChange={(e) =>
-                                setAiContext((prev) => ({
-                                    ...prev,
-                                    integrations: e.target.checked,
-                                }))
-                            }
-                        >
-                            Integrações
-                        </Checkbox>
-                    </div>
-                    <div className="ai-context-option">
-                        <Checkbox
-                            checked={aiContext.governance}
-                            onChange={(e) =>
-                                setAiContext((prev) => ({
-                                    ...prev,
-                                    governance: e.target.checked,
-                                }))
-                            }
-                        >
-                            Governança
-                        </Checkbox>
-                    </div>
-                    <div className="ai-context-option">
-                        <Checkbox
-                            checked={aiContext.nfrs}
-                            onChange={(e) =>
-                                setAiContext((prev) => ({
-                                    ...prev,
-                                    nfrs: e.target.checked,
-                                }))
-                            }
-                        >
-                            NFRs
-                        </Checkbox>
-                    </div>
-                    <div className="ai-context-option">
-                        <Checkbox
-                            checked={aiContext.decisions}
-                            onChange={(e) =>
-                                setAiContext((prev) => ({
-                                    ...prev,
-                                    decisions: e.target.checked,
-                                }))
-                            }
-                        >
-                            Decisões
-                        </Checkbox>
-                    </div>
-                    <div className="ai-context-option">
-                        <Checkbox
-                            checked={aiContext.chatHistory}
-                            onChange={(e) =>
-                                setAiContext((prev) => ({
-                                    ...prev,
-                                    chatHistory: e.target.checked,
-                                }))
-                            }
-                        >
-                            Chat inicial do projeto
-                        </Checkbox>
-                    </div>
+                    <Checkbox
+                        className="ai-context-option"
+                        checked={aiContext.purpose}
+                        onChange={(e) =>
+                            setAiContext((prev) => ({
+                                ...prev,
+                                purpose: e.target.checked,
+                            }))
+                        }
+                    >
+                        Missão/Propósito
+                    </Checkbox>
+                    <Checkbox
+                        className="ai-context-option"
+                        checked={aiContext.scope}
+                        onChange={(e) =>
+                            setAiContext((prev) => ({
+                                ...prev,
+                                scope: e.target.checked,
+                            }))
+                        }
+                    >
+                        Escopo
+                    </Checkbox>
+                    <Checkbox
+                        className="ai-context-option"
+                        checked={aiContext.targetUsers}
+                        onChange={(e) =>
+                            setAiContext((prev) => ({
+                                ...prev,
+                                targetUsers: e.target.checked,
+                            }))
+                        }
+                    >
+                        Público-alvo
+                    </Checkbox>
+                    <Checkbox
+                        className="ai-context-option"
+                        checked={aiContext.stack}
+                        onChange={(e) =>
+                            setAiContext((prev) => ({
+                                ...prev,
+                                stack: e.target.checked,
+                            }))
+                        }
+                    >
+                        Stack técnica
+                    </Checkbox>
+                    <Checkbox
+                        className="ai-context-option"
+                        checked={aiContext.patterns}
+                        onChange={(e) =>
+                            setAiContext((prev) => ({
+                                ...prev,
+                                patterns: e.target.checked,
+                            }))
+                        }
+                    >
+                        Padrões
+                    </Checkbox>
+                    <Checkbox
+                        className="ai-context-option"
+                        checked={aiContext.risks}
+                        onChange={(e) =>
+                            setAiContext((prev) => ({
+                                ...prev,
+                                risks: e.target.checked,
+                            }))
+                        }
+                    >
+                        Riscos
+                    </Checkbox>
+                    <Checkbox
+                        className="ai-context-option"
+                        checked={aiContext.integrations}
+                        onChange={(e) =>
+                            setAiContext((prev) => ({
+                                ...prev,
+                                integrations: e.target.checked,
+                            }))
+                        }
+                    >
+                        Integrações
+                    </Checkbox>
+                    <Checkbox
+                        className="ai-context-option"
+                        checked={aiContext.governance}
+                        onChange={(e) =>
+                            setAiContext((prev) => ({
+                                ...prev,
+                                governance: e.target.checked,
+                            }))
+                        }
+                    >
+                        Governança
+                    </Checkbox>
+                    <Checkbox
+                        className="ai-context-option"
+                        checked={aiContext.nfrs}
+                        onChange={(e) =>
+                            setAiContext((prev) => ({
+                                ...prev,
+                                nfrs: e.target.checked,
+                            }))
+                        }
+                    >
+                        NFRs
+                    </Checkbox>
+                    <Checkbox
+                        className="ai-context-option"
+                        checked={aiContext.decisions}
+                        onChange={(e) =>
+                            setAiContext((prev) => ({
+                                ...prev,
+                                decisions: e.target.checked,
+                            }))
+                        }
+                    >
+                        Decisões
+                    </Checkbox>
                 </div>
                     <div className="flex justify-end gap-3 pt-2">
                         <PrimaryButton
@@ -2488,6 +2757,100 @@ export default function Show({ project: initialProject }) {
                             Fechar
                         </PrimaryButton>
                     </div>
+                </div>
+            </Modal>
+
+            <Modal
+                open={aiSuggestionsOpen}
+                onCancel={() => setAiSuggestionsOpen(false)}
+                footer={null}
+                title={`Sugestões da IA • ${moduleLabels[aiSuggestionsModule] || ''}`}
+                width={680}
+                centered
+                destroyOnHidden
+            >
+                <div className="ai-suggestions">
+                    {aiSuggestions.length ? (
+                        aiSuggestions.map((item, index) => {
+                            const info = formatSuggestion(aiSuggestionsModule, item);
+                            return (
+                                <div
+                                    key={`${info.title}-${index}`}
+                                    className="ai-suggestion-item"
+                                >
+                                    <div className="ai-suggestion-body">
+                                        <div className="ai-suggestion-title">
+                                            {info.title}
+                                        </div>
+                                        {info.subtitle && (
+                                            <div className="ai-suggestion-subtitle">
+                                                {info.subtitle}
+                                            </div>
+                                        )}
+                                    </div>
+                                    {info.meta && (
+                                        <span className="ai-suggestion-meta">
+                                            {info.meta}
+                                        </span>
+                                    )}
+                                    <div className="ai-suggestion-actions">
+                                        <button
+                                            type="button"
+                                            className="ai-suggestion-accept"
+                                            onClick={() =>
+                                                handleAiAccept(
+                                                    aiSuggestionsModule,
+                                                    item,
+                                                    index,
+                                                )
+                                            }
+                                            disabled={
+                                                aiSuggestionProcessing !== null
+                                            }
+                                            aria-label="Aceitar sugestão"
+                                        >
+                                            {aiSuggestionProcessing?.index === index &&
+                                            aiSuggestionProcessing?.action ===
+                                                'accept' ? (
+                                                <span className="ai-suggestion-spinner" />
+                                            ) : (
+                                                <FiCheck className="h-4 w-4" />
+                                            )}
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className="ai-suggestion-reject"
+                                            onClick={() => handleAiReject(index)}
+                                            disabled={
+                                                aiSuggestionProcessing !== null
+                                            }
+                                            aria-label="Recusar sugestão"
+                                        >
+                                            {aiSuggestionProcessing?.index === index &&
+                                            aiSuggestionProcessing?.action ===
+                                                'reject' ? (
+                                                <span className="ai-suggestion-spinner" />
+                                            ) : (
+                                                <FiX className="h-4 w-4" />
+                                            )}
+                                        </button>
+                                    </div>
+                                </div>
+                            );
+                        })
+                    ) : (
+                        <div className="ai-suggestions-empty">
+                            Nenhuma sugestão disponível.
+                        </div>
+                    )}
+                </div>
+                <div className="mt-4 flex justify-end">
+                    <PrimaryButton
+                        variant="outlineRed"
+                        onClick={() => setAiSuggestionsOpen(false)}
+                    >
+                        Fechar
+                    </PrimaryButton>
                 </div>
             </Modal>
         </>

@@ -82,6 +82,37 @@ class MistralClient
         ];
     }
 
+    public function structuredReply(array $messages, int $timeoutSeconds = 20): array
+    {
+        $attempts = 0;
+        $payload = $messages;
+
+        while ($attempts < 2) {
+            $result = $this->advise($payload, $timeoutSeconds);
+            if (isset($result['error'])) {
+                return $result;
+            }
+
+            $content = $this->extractContent($result);
+            $decoded = $content ? $this->decodeJsonContent($content) : null;
+
+            if (is_array($decoded)) {
+                return [
+                    'data' => $decoded,
+                    'meta' => $this->buildMeta($result, $attempts + 1),
+                ];
+            }
+
+            $attempts++;
+            $payload[] = [
+                'role' => 'user',
+                'content' => 'Responda apenas com JSON válido, sem markdown ou explicações.',
+            ];
+        }
+
+        return ['error' => 'invalid_message'];
+    }
+
     private function callAgent(array $messages): array
     {
         return $this->advise($messages);
