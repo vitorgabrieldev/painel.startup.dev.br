@@ -17,9 +17,38 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Notification as NotificationFacade;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use App\Jobs\GenerateProjectModuleSummary;
+use App\Models\ProjectModuleSummary;
+use Illuminate\Support\Carbon;
 
 class ProjectDataController extends Controller
 {
+    use InteractsWithProjectPermissions;
+
+    /**
+     * Retorna o resumo IA do módulo do projeto (mais recente do dia).
+     */
+    public function getModuleSummary(Project $project, $module)
+    {
+        $this->assertProjectAccess($project);
+        $today = Carbon::today();
+        $summary = ProjectModuleSummary::where('project_id', $project->id)
+            ->where('module', $module)
+            ->whereDate('generated_at', $today)
+            ->orderByDesc('generated_at')
+            ->first();
+        if (!$summary) {
+            return response()->json([
+                'summary' => null,
+                'message' => 'Nenhum resumo gerado para este módulo hoje.'
+            ], 404);
+        }
+        $decoded = json_decode($summary->summary, true);
+        return response()->json([
+            'summary' => $decoded,
+            'generated_at' => $summary->generated_at,
+        ]);
+    }
     use InteractsWithProjectPermissions;
 
     public function updateProject(Project $project, Request $request)
@@ -60,6 +89,8 @@ class ProjectDataController extends Controller
 
         $this->notifyProjectChange($project, 'stack', 'create', ['name' => $data['name']]);
 
+        $this->dispatchModuleSummaryIfNeeded($project->id, 'stack');
+
         return $this->freshProject($project);
     }
 
@@ -84,11 +115,14 @@ class ProjectDataController extends Controller
 
         $this->notifyProjectChange($project, 'stack', 'update', ['name' => $data['name']]);
 
+        $this->dispatchModuleSummaryIfNeeded($project->id, 'stack');
+
         return $this->freshProject($project);
     }
 
     public function addPattern(Project $project, Request $request)
     {
+        $this->dispatchModuleSummaryIfNeeded($project->id, 'patterns');
         $this->assertProjectAccess($project);
         $this->assertProjectPermission($project, 'patterns', 'create');
 
@@ -108,6 +142,7 @@ class ProjectDataController extends Controller
 
     public function addRisk(Project $project, Request $request)
     {
+        $this->dispatchModuleSummaryIfNeeded($project->id, 'risks');
         $this->assertProjectAccess($project);
         $this->assertProjectPermission($project, 'risks', 'create');
 
@@ -127,6 +162,7 @@ class ProjectDataController extends Controller
 
     public function addIntegration(Project $project, Request $request)
     {
+        $this->dispatchModuleSummaryIfNeeded($project->id, 'integrations');
         $this->assertProjectAccess($project);
         $this->assertProjectPermission($project, 'integrations', 'create');
 
@@ -144,6 +180,7 @@ class ProjectDataController extends Controller
 
     public function addGovernance(Project $project, Request $request)
     {
+        $this->dispatchModuleSummaryIfNeeded($project->id, 'governance');
         $this->assertProjectAccess($project);
         $this->assertProjectPermission($project, 'governance', 'create');
 
@@ -162,6 +199,7 @@ class ProjectDataController extends Controller
 
     public function addNfr(Project $project, Request $request)
     {
+        $this->dispatchModuleSummaryIfNeeded($project->id, 'nfrs');
         $this->assertProjectAccess($project);
         $this->assertProjectPermission($project, 'nfrs', 'create');
 
@@ -182,6 +220,7 @@ class ProjectDataController extends Controller
 
     public function addDecision(Project $project, Request $request)
     {
+        $this->dispatchModuleSummaryIfNeeded($project->id, 'decisions');
         $this->assertProjectAccess($project);
         $this->assertProjectPermission($project, 'decisions', 'create');
 
@@ -612,5 +651,20 @@ class ProjectDataController extends Controller
             $project->members()->where('user_id', auth()->id())->exists(),
             404,
         );
+    }
+
+    /**
+     * Dispara o job de resumo IA se não houver um gerado hoje para o módulo.
+     */
+    private function dispatchModuleSummaryIfNeeded($projectId, $module)
+    {
+        $today = Carbon::today();
+        $lastSummary = ProjectModuleSummary::where('project_id', $projectId)
+            ->where('module', $module)
+            ->whereDate('generated_at', $today)
+            ->first();
+        if (!$lastSummary) {
+            GenerateProjectModuleSummary::dispatch($projectId, $module);
+        }
     }
 }

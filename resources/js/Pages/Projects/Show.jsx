@@ -15,6 +15,7 @@ import {
     Tabs,
     Tooltip,
     Tag,
+    Collapse,
 } from 'antd';
 import InviteButton from '@/Components/InviteButton';
 import aiIcon from '@/assets/ai-icon.svg';
@@ -279,6 +280,14 @@ const formatSuggestion = (module, item = {}) => {
 
 export default function Show({ project: initialProject, role: initialRole = 'user', permissions: initialPermissions = {}, available_roles: availableRoles = [] }) {
     const authUser = usePage().props.auth.user;
+    // Estados para resumos IA por módulo (devem estar no topo do componente)
+        const [moduleSummaries, setModuleSummaries] = useState({});
+        const [loadingSummaries, setLoadingSummaries] = useState({
+            stack: false,
+            patterns: false,
+            integrations: false,
+            nfrs: false,
+        });
     const [project, setProject] = useState(initialProject);
     const [permissions, setPermissions] = useState(initialPermissions || {});
     const [role] = useState(initialRole || 'user');
@@ -1172,6 +1181,161 @@ export default function Show({ project: initialProject, role: initialRole = 'use
                             className="project-tabs"
                             items={[
                                 {
+                                    key: 'summary',
+                                    label: (
+                                        <Tooltip title="Resumo geral do projeto">
+                                            <span className="project-tab-label flex items-center gap-2">
+                                                <span className="rounded-lg bg-blue-500/15 p-2 text-blue-600">
+                                                    <FiInfo className="h-4 w-4" />
+                                                </span>
+                                                <span>Resumo</span>
+                                            </span>
+                                        </Tooltip>
+                                    ),
+                                    children: (
+                                        <Section
+                                            title="Resumo do Projeto"
+                                            titleTooltip="Visão geral rápida dos principais módulos do projeto."
+                                        >
+                                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                                                <div className="rounded-lg bg-gray-50 p-4 text-center border border-gray-200">
+                                                    <div className="text-2xl font-bold text-blue-600">{stacks.length}</div>
+                                                    <div className="text-xs text-gray-600 mt-1">Stack Técnica</div>
+                                                </div>
+                                                <div className="rounded-lg bg-gray-50 p-4 text-center border border-gray-200">
+                                                    <div className="text-2xl font-bold text-blue-600">{patterns.length}</div>
+                                                    <div className="text-xs text-gray-600 mt-1">Padrões</div>
+                                                </div>
+                                                <div className="rounded-lg bg-gray-50 p-4 text-center border border-gray-200">
+                                                    <div className="text-2xl font-bold text-blue-600">{risks.length}</div>
+                                                    <div className="text-xs text-gray-600 mt-1">Riscos</div>
+                                                </div>
+                                                <div className="rounded-lg bg-gray-50 p-4 text-center border border-gray-200">
+                                                    <div className="text-2xl font-bold text-blue-600">{integrations.length}</div>
+                                                    <div className="text-xs text-gray-600 mt-1">Integrações</div>
+                                                </div>
+                                                <div className="rounded-lg bg-gray-50 p-4 text-center border border-gray-200">
+                                                    <div className="text-2xl font-bold text-blue-600">{governance.length}</div>
+                                                    <div className="text-xs text-gray-600 mt-1">Governança</div>
+                                                </div>
+                                                <div className="rounded-lg bg-gray-50 p-4 text-center border border-gray-200">
+                                                    <div className="text-2xl font-bold text-blue-600">{nfrs.length}</div>
+                                                    <div className="text-xs text-gray-600 mt-1">NFRs</div>
+                                                </div>
+                                                <div className="rounded-lg bg-gray-50 p-4 text-center border border-gray-200">
+                                                    <div className="text-2xl font-bold text-blue-600">{decisions.length}</div>
+                                                    <div className="text-xs text-gray-600 mt-1">Decisões</div>
+                                                </div>
+                                            </div>
+                                            <div className="space-y-3 max-h-[320px] overflow-y-auto pr-2">
+                                                {[{key:'stack',label:'Stack Técnica',icon:<FiLayers className='h-4 w-4'/>},
+                                                  {key:'patterns',label:'Padrões',icon:<FiGitBranch className='h-4 w-4'/>},
+                                                  {key:'risks',label:'Riscos',icon:<FiAlertTriangle className='h-4 w-4'/>},
+                                                  {key:'integrations',label:'Integrações',icon:<FiLink className='h-4 w-4'/>},
+                                                  {key:'governance',label:'Governança',icon:<FiShield className='h-4 w-4'/>},
+                                                  {key:'nfrs',label:'NFRs',icon:<FiClipboard className='h-4 w-4'/>},
+                                                  {key:'decisions',label:'Decisões',icon:<FiCheckSquare className='h-4 w-4'/>}].map((mod) => (
+                                                    <Collapse key={mod.key} className="bg-white border border-gray-200 rounded-lg w-full"
+                                                        onChange={async (keys) => {
+                                                            if (Array.isArray(keys) ? keys.includes(mod.key) : keys === mod.key) {
+                                                                if (!moduleSummaries[mod.key] && !loadingSummaries[mod.key]) {
+                                                                    setLoadingSummaries((prev) => ({ ...prev, [mod.key]: true }));
+                                                                    try {
+                                                                        const { data } = await axios.get(`/projects/${project.id}/module-summary/${mod.key}`);
+                                                                        setModuleSummaries((prev) => ({ ...prev, [mod.key]: data.summary || null }));
+                                                                    } catch (e) {
+                                                                        setModuleSummaries((prev) => ({ ...prev, [mod.key]: null }));
+                                                                    } finally {
+                                                                        setLoadingSummaries((prev) => ({ ...prev, [mod.key]: false }));
+                                                                    }
+                                                                }
+                                                            }
+                                                        }}
+                                                    >
+                                                        <Collapse.Panel header={<span className="flex items-center gap-2">{mod.icon}{mod.label}</span>} key={mod.key}>
+                                                            <div className="text-sm text-gray-700 min-h-[48px] flex items-center">
+                                                                {loadingSummaries[mod.key] ? (
+                                                                    <span className="text-gray-400">Carregando resumo...</span>
+                                                                ) : moduleSummaries[mod.key] ? (
+                                                                    <div className="text-gray-600 text-sm block">
+                                                                        {typeof moduleSummaries[mod.key] === 'object' && moduleSummaries[mod.key] !== null ? (
+                                                                            <>
+                                                                                {moduleSummaries[mod.key].descricao && (
+                                                                                    <p className="mb-2"><b>Descrição:</b> {moduleSummaries[mod.key].descricao}</p>
+                                                                                )}
+                                                                                {Array.isArray(moduleSummaries[mod.key].objetivos) && (
+                                                                                    <div className="mb-2">
+                                                                                        <b>Objetivos:</b>
+                                                                                        <ul className="list-disc ml-5">
+                                                                                            {moduleSummaries[mod.key].objetivos.map((obj, idx) => (
+                                                                                                <li key={idx}>{obj}</li>
+                                                                                            ))}
+                                                                                        </ul>
+                                                                                    </div>
+                                                                                )}
+                                                                                {moduleSummaries[mod.key].componentes && (
+                                                                                    <div className="mb-2">
+                                                                                        <b>Componentes:</b>
+                                                                                        <pre className="bg-gray-100 p-2 rounded text-xs overflow-x-auto">{JSON.stringify(moduleSummaries[mod.key].componentes, null, 2)}</pre>
+                                                                                    </div>
+                                                                                )}
+                                                                                {Array.isArray(moduleSummaries[mod.key].decisoes_pendentes) && (
+                                                                                    <div className="mb-2">
+                                                                                        <b>Decisões pendentes:</b>
+                                                                                        <ul className="list-disc ml-5">
+                                                                                            {moduleSummaries[mod.key].decisoes_pendentes.map((d, idx) => (
+                                                                                                <li key={idx}>{d}</li>
+                                                                                            ))}
+                                                                                        </ul>
+                                                                                    </div>
+                                                                                )}
+                                                                                {Array.isArray(moduleSummaries[mod.key].proximos_passos) && (
+                                                                                    <div className="mb-2">
+                                                                                        <b>Próximos passos:</b>
+                                                                                        <ul className="list-disc ml-5">
+                                                                                            {moduleSummaries[mod.key].proximos_passos.map((p, idx) => (
+                                                                                                <li key={idx}><b>{p.acao}</b> — {p.responsavel} (prazo: {p.prazo})</li>
+                                                                                            ))}
+                                                                                        </ul>
+                                                                                    </div>
+                                                                                )}
+                                                                                {Array.isArray(moduleSummaries[mod.key].riscos) && (
+                                                                                    <div className="mb-2">
+                                                                                        <b>Riscos:</b>
+                                                                                        <ul className="list-disc ml-5">
+                                                                                            {moduleSummaries[mod.key].riscos.map((r, idx) => (
+                                                                                                <li key={idx}><b>{r.descricao}</b> — Mitigação: {r.mitigacao}</li>
+                                                                                            ))}
+                                                                                        </ul>
+                                                                                    </div>
+                                                                                )}
+                                                                                {Array.isArray(moduleSummaries[mod.key].indicadores_sucesso) && (
+                                                                                    <div className="mb-2">
+                                                                                        <b>Indicadores de sucesso:</b>
+                                                                                        <ul className="list-disc ml-5">
+                                                                                            {moduleSummaries[mod.key].indicadores_sucesso.map((i, idx) => (
+                                                                                                <li key={idx}>{i}</li>
+                                                                                            ))}
+                                                                                        </ul>
+                                                                                    </div>
+                                                                                )}
+                                                                            </>
+                                                                        ) : (
+                                                                            <span>{moduleSummaries[mod.key]}</span>
+                                                                        )}
+                                                                    </div>
+                                                                ) : (
+                                                                    <span className="text-gray-400 text-sm block">Adicione ou edite o módulo para ter um resumo e receber sugestões.</span>
+                                                                )}
+                                                            </div>
+                                                        </Collapse.Panel>
+                                                    </Collapse>
+                                                ))}
+                                            </div>
+                                        </Section>
+                                    ),
+                                },
+                                {
                                     key: 'overview',
                                     label: (
                                         <Tooltip title="Resumo do projeto, propósito e escopo">
@@ -1179,7 +1343,7 @@ export default function Show({ project: initialProject, role: initialRole = 'use
                                                 <span className="rounded-lg bg-red-500/15 p-2 text-red-600">
                                                     <FiFileText className="h-4 w-4" />
                                                 </span>
-                                                <span>Sobre/Escopo</span>
+                                                <span>Escopo</span>
                                             </span>
                                         </Tooltip>
                                     ),

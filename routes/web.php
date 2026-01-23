@@ -41,6 +41,8 @@ Route::middleware('guest')->group(function () {
 
 Route::middleware(['auth'])->group(function () {
     Route::get('/dashboard', DashboardController::class)->name('dashboard');
+    // Rota para buscar resumo IA do módulo
+    Route::get('/projects/{project}/module-summary/{module}', [ProjectDataController::class, 'getModuleSummary'])->name('projects.module-summary');
     Route::get('/projects', [ProjectController::class, 'index'])->name('projects.index');
     Route::get('/c/{project:uuid}', [ChatController::class, 'show'])->name('chat.show');
     Route::get('/termos-de-uso', function () {

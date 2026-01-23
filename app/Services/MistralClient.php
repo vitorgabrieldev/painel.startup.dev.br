@@ -82,7 +82,7 @@ class MistralClient
         ];
     }
 
-    public function structuredReply(array $messages, int $timeoutSeconds = 20): array
+    public function structuredReply(array $messages, int $timeoutSeconds = 60): array
     {
         $attempts = 0;
         $payload = $messages;
