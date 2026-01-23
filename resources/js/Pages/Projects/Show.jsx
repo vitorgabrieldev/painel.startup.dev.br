@@ -1,6 +1,6 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import PrimaryButton from '@/Components/PrimaryButton';
-import { Head, Link } from '@inertiajs/react';
+import { Head, Link, usePage } from '@inertiajs/react';
 import axios from 'axios';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -76,6 +76,18 @@ const renderRichValue = (value, fallback) => {
     if (!text) return <span className="text-gray-400">{fallback}</span>;
     return <span className="whitespace-pre-line">{renderChatText(text)}</span>;
 };
+
+const canDo = (permissions, module, action) => {
+    if (!permissions) return false;
+    if (permissions['*'] && permissions['*'].includes('*')) return true;
+    const actions = permissions[module] || [];
+    return actions.includes(action);
+};
+
+const canManage = (permissions, module) =>
+    canDo(permissions, module, 'create') ||
+    canDo(permissions, module, 'edit') ||
+    canDo(permissions, module, 'delete');
 const InfoLabel = ({ text, tooltip }) => (
     <div className="flex items-center gap-2">
         <span>{text}</span>
@@ -256,13 +268,19 @@ const formatSuggestion = (module, item = {}) => {
     return { title: 'Item', subtitle: '', meta: null };
 };
 
-export default function Show({ project: initialProject }) {
+export default function Show({ project: initialProject, role: initialRole = 'user', permissions: initialPermissions = {}, available_roles: availableRoles = [] }) {
+    const authUser = usePage().props.auth.user;
     const [project, setProject] = useState(initialProject);
+    const [permissions, setPermissions] = useState(initialPermissions || {});
+    const [role] = useState(initialRole || 'user');
+    const [members, setMembers] = useState(initialProject.members || []);
     const [loading, setLoading] = useState(false);
     const [messageApi, contextHolder] = message.useMessage();
     const [isMobileBlocked, setIsMobileBlocked] = useState(false);
     const [avatarPreview, setAvatarPreview] = useState(null);
     const [avatarProcessing, setAvatarProcessing] = useState(false);
+    const [projectName, setProjectName] = useState(initialProject.name || '');
+    const [nameSaving, setNameSaving] = useState(false);
     const [aiChatOpen, setAiChatOpen] = useState(false);
     const [aiConfigOpen, setAiConfigOpen] = useState(false);
     const [aiMessages, setAiMessages] = useState([]);
@@ -550,6 +568,10 @@ export default function Show({ project: initialProject }) {
         }
     }, [searchHistory]);
 
+    useEffect(() => {
+        setProjectName(project.name || '');
+    }, [project.name]);
+
     const avatarUrl = useMemo(() => {
         if (avatarPreview) return avatarPreview;
         if (!project.avatar_url) return null;
@@ -580,6 +602,47 @@ export default function Show({ project: initialProject }) {
             messageApi.error('Erro ao atualizar avatar.');
         } finally {
             setAvatarProcessing(false);
+        }
+    };
+
+    const handleProjectNameSave = async () => {
+        const value = projectName.trim();
+        if (!value) {
+            messageApi.error('Informe um nome para o projeto.');
+            return;
+        }
+        setNameSaving(true);
+        try {
+            const { data } = await axios.patch(route('projects.update', project.id), {
+                name: value,
+            });
+            setProject(data);
+            setProjectName(data.name || value);
+            messageApi.success('Nome atualizado.');
+        } catch (error) {
+            messageApi.error('Erro ao atualizar nome.');
+        } finally {
+            setNameSaving(false);
+        }
+    };
+
+    const [memberUpdating, setMemberUpdating] = useState(null);
+
+    const handleMemberRoleChange = async (memberId, newRole) => {
+        setMemberUpdating(memberId);
+        try {
+            const { data } = await axios.patch(
+                route('projects.members.update', { project: project.id, member: memberId }),
+                { role: newRole },
+            );
+            setMembers((prev) =>
+                prev.map((item) => (item.id === memberId ? { ...item, role: data.member.role } : item)),
+            );
+            messageApi.success('Permissão atualizada.');
+        } catch (error) {
+            messageApi.error('Erro ao atualizar permissão.');
+        } finally {
+            setMemberUpdating(null);
         }
     };
 
@@ -1031,15 +1094,19 @@ export default function Show({ project: initialProject }) {
                         </div>
                     </div>
                     <div className="flex items-center gap-3">
-                        <button
-                            type="button"
-                            onClick={() => setProjectSettingsOpen(true)}
-                            className="flex h-10 w-10 items-center justify-center rounded-[6px] border border-gray-200 text-gray-500 transition hover:border-[var(--color-secondary)] hover:text-[var(--color-secondary)]"
-                            aria-label="Configurações do projeto"
-                        >
-                            <FiSettings className="h-5 w-5" />
-                        </button>
-                        <InviteButton projectId={project.id} />
+                        {canDo(permissions, 'project', 'edit') && (
+                            <button
+                                type="button"
+                                onClick={() => setProjectSettingsOpen(true)}
+                                className="flex h-10 w-10 items-center justify-center rounded-[6px] border border-gray-200 text-gray-500 transition hover:border-[var(--color-secondary)] hover:text-[var(--color-secondary)]"
+                                aria-label="Configurações do projeto"
+                            >
+                                <FiSettings className="h-5 w-5" />
+                            </button>
+                        )}
+                        {canDo(permissions, 'invites', 'create') && (
+                            <InviteButton projectId={project.id} disabled={!canDo(permissions, 'invites', 'create')} />
+                        )}
                         <Tooltip title="Contexto da IA">
                             <button
                                 type="button"
@@ -1112,15 +1179,17 @@ export default function Show({ project: initialProject }) {
                                             title="Sobre, propósito e escopo"
                                             titleTooltip="Resumo geral do projeto com objetivo e limites. Ex.: 'Marketplace de serviços locais com foco em PMEs'."
                                             action={
-                                                <PrimaryButton
-                                                    variant="outlineRed"
-                                                    onClick={() => setEditingOverview(true)}
-                                                >
-                                                    <span className="inline-flex items-center gap-2">
-                                                        <FiEdit2 className="h-4 w-4" />
-                                                        Editar
-                                                    </span>
-                                                </PrimaryButton>
+                                                canDo(permissions, 'project', 'edit') ? (
+                                                    <PrimaryButton
+                                                        variant="outlineRed"
+                                                        onClick={() => setEditingOverview(true)}
+                                                    >
+                                                        <span className="inline-flex items-center gap-2">
+                                                            <FiEdit2 className="h-4 w-4" />
+                                                            Editar
+                                                        </span>
+                                                    </PrimaryButton>
+                                                ) : null
                                             }
                                         >
                                             <p className="font-semibold text-gray-800">Sobre</p>
@@ -1157,40 +1226,42 @@ export default function Show({ project: initialProject }) {
                                             title="Stack técnica"
                                             titleTooltip="Tecnologias do produto. Ex.: React, Laravel, PostgreSQL, Redis, AWS."
                                             action={
-                                                <div className="flex items-center gap-2">
-                                                    <Tooltip title="Gerar com IA">
-                                                        <button
-                                                            type="button"
-                                                            className={`ai-generate-button ${
-                                                                aiModuleLoading.stack ? 'is-loading' : ''
-                                                            }`}
-                                                            onClick={() => handleAiGenerate('stack')}
-                                                            disabled={aiModuleLoading.stack}
-                                                            aria-label="Gerar stack com IA"
-                                                            aria-busy={aiModuleLoading.stack}
+                                                canManage(permissions, 'stack') ? (
+                                                    <div className="flex items-center gap-2">
+                                                        <Tooltip title="Gerar com IA">
+                                                            <button
+                                                                type="button"
+                                                                className={`ai-generate-button ${
+                                                                    aiModuleLoading.stack ? 'is-loading' : ''
+                                                                }`}
+                                                                onClick={() => handleAiGenerate('stack')}
+                                                                disabled={aiModuleLoading.stack}
+                                                                aria-label="Gerar stack com IA"
+                                                                aria-busy={aiModuleLoading.stack}
+                                                            >
+                                                                {aiModuleLoading.stack ? (
+                                                                    <span className="ai-generate-spinner" />
+                                                                ) : (
+                                                                    <img src={aiIcon} alt="AI" />
+                                                                )}
+                                                                <span className="ai-generate-label">
+                                                                    Safio Creator AI
+                                                                </span>
+                                                            </button>
+                                                        </Tooltip>
+                                                        <PrimaryButton
+                                                            variant="red"
+                                                            className="!text-white"
+                                                            onClick={() => {
+                                                                stackForm.resetFields();
+                                                                setEditingStack(null);
+                                                                setStackModal(true);
+                                                            }}
                                                         >
-                                                            {aiModuleLoading.stack ? (
-                                                                <span className="ai-generate-spinner" />
-                                                            ) : (
-                                                                <img src={aiIcon} alt="AI" />
-                                                            )}
-                                                            <span className="ai-generate-label">
-                                                                Safio Creator AI
-                                                            </span>
-                                                        </button>
-                                                    </Tooltip>
-                                                    <PrimaryButton
-                                                        variant="red"
-                                                        className="!text-white"
-                                                        onClick={() => {
-                                                            stackForm.resetFields();
-                                                            setEditingStack(null);
-                                                            setStackModal(true);
-                                                        }}
-                                                    >
-                                                        Adicionar
-                                                    </PrimaryButton>
-                                                </div>
+                                                            Adicionar
+                                                        </PrimaryButton>
+                                                    </div>
+                                                ) : null
                                             }
                                             subtitle="Linguagens, frameworks, bancos, infra e ferramentas."
                                         >
@@ -1199,30 +1270,32 @@ export default function Show({ project: initialProject }) {
                                                 placeholder="Buscar stack"
                                             />
                                             {filterAndSort(stacks, 'stack').length ? (
-                                                <List
-                                                    size="small"
-                                                    className="project-list project-list-spaced"
-                                                    dataSource={filterAndSort(stacks, 'stack')}
-                                                    renderItem={(item) => (
-                                                        <List.Item
-                                                            className="!w-full !px-0 !py-0"
-                                                            role="button"
-                                                            tabIndex={0}
-                                                            onClick={() => {
-                                                                stackForm.setFieldsValue({
-                                                                    ...item,
-                                                                    constraints: toPlainText(item.constraints),
-                                                                    rationale: toPlainText(item.rationale),
-                                                                });
-                                                                setEditingStack(item);
-                                                                setStackModal(true);
-                                                            }}
-                                                            onKeyDown={(event) => {
-                                                                if (event.key === 'Enter' || event.key === ' ') {
-                                                                    event.preventDefault();
+                                                    <List
+                                                        size="small"
+                                                        className="project-list project-list-spaced"
+                                                        dataSource={filterAndSort(stacks, 'stack')}
+                                                        renderItem={(item) => (
+                                                            <List.Item
+                                                                className="!w-full !px-0 !py-0"
+                                                                role="button"
+                                                                tabIndex={0}
+                                                                onClick={() => {
+                                                                    if (!canManage(permissions, 'stack')) return;
                                                                     stackForm.setFieldsValue({
                                                                         ...item,
                                                                         constraints: toPlainText(item.constraints),
+                                                                        rationale: toPlainText(item.rationale),
+                                                                    });
+                                                                    setEditingStack(item);
+                                                                    setStackModal(true);
+                                                                }}
+                                                                onKeyDown={(event) => {
+                                                                    if (!canManage(permissions, 'stack')) return;
+                                                                    if (event.key === 'Enter' || event.key === ' ') {
+                                                                        event.preventDefault();
+                                                                        stackForm.setFieldsValue({
+                                                                            ...item,
+                                                                            constraints: toPlainText(item.constraints),
                                                                         rationale: toPlainText(item.rationale),
                                                                     });
                                                                     setEditingStack(item);
@@ -1282,39 +1355,41 @@ export default function Show({ project: initialProject }) {
                                             title="Padrões de arquitetura"
                                             titleTooltip="Padrões e abordagens. Ex.: MVC, Clean Architecture, Event-driven, CQRS."
                                             action={
-                                                <div className="flex items-center gap-2">
-                                                    <Tooltip title="Gerar com IA">
-                                                        <button
-                                                            type="button"
-                                                            className={`ai-generate-button ${
-                                                                aiModuleLoading.patterns ? 'is-loading' : ''
-                                                            }`}
-                                                            onClick={() => handleAiGenerate('patterns')}
-                                                            disabled={aiModuleLoading.patterns}
-                                                            aria-label="Gerar padrões com IA"
-                                                            aria-busy={aiModuleLoading.patterns}
+                                                canManage(permissions, 'patterns') ? (
+                                                    <div className="flex items-center gap-2">
+                                                        <Tooltip title="Gerar com IA">
+                                                            <button
+                                                                type="button"
+                                                                className={`ai-generate-button ${
+                                                                    aiModuleLoading.patterns ? 'is-loading' : ''
+                                                                }`}
+                                                                onClick={() => handleAiGenerate('patterns')}
+                                                                disabled={aiModuleLoading.patterns}
+                                                                aria-label="Gerar padrões com IA"
+                                                                aria-busy={aiModuleLoading.patterns}
+                                                            >
+                                                                {aiModuleLoading.patterns ? (
+                                                                    <span className="ai-generate-spinner" />
+                                                                ) : (
+                                                                    <img src={aiIcon} alt="AI" />
+                                                                )}
+                                                                <span className="ai-generate-label">
+                                                                    Safio Creator AI
+                                                                </span>
+                                                            </button>
+                                                        </Tooltip>
+                                                        <PrimaryButton
+                                                            variant="red"
+                                                            className="!text-white"
+                                                            onClick={() => {
+                                                                patternForm.resetFields();
+                                                                setPatternModal(true);
+                                                            }}
                                                         >
-                                                            {aiModuleLoading.patterns ? (
-                                                                <span className="ai-generate-spinner" />
-                                                            ) : (
-                                                                <img src={aiIcon} alt="AI" />
-                                                            )}
-                                                            <span className="ai-generate-label">
-                                                                Safio Creator AI
-                                                            </span>
-                                                        </button>
-                                                    </Tooltip>
-                                                    <PrimaryButton
-                                                        variant="red"
-                                                        className="!text-white"
-                                                        onClick={() => {
-                                                            patternForm.resetFields();
-                                                            setPatternModal(true);
-                                                        }}
-                                                    >
-                                                        Adicionar
-                                                    </PrimaryButton>
-                                                </div>
+                                                            Adicionar
+                                                        </PrimaryButton>
+                                                    </div>
+                                                ) : null
                                             }
                                             subtitle="Padrões arquiteturais e estado de adoção."
                                         >
@@ -1333,10 +1408,12 @@ export default function Show({ project: initialProject }) {
                                                             role="button"
                                                             tabIndex={0}
                                                             onClick={() => {
+                                                                if (!canManage(permissions, 'patterns')) return;
                                                                 patternForm.setFieldsValue(pattern);
                                                                 setPatternModal(true);
                                                             }}
                                                             onKeyDown={(event) => {
+                                                                if (!canManage(permissions, 'patterns')) return;
                                                                 if (event.key === 'Enter' || event.key === ' ') {
                                                                     event.preventDefault();
                                                                     patternForm.setFieldsValue(pattern);
@@ -1393,16 +1470,18 @@ export default function Show({ project: initialProject }) {
                                             title="Riscos"
                                             titleTooltip="Riscos e mitigação. Ex.: atraso de integração, compliance, SLA, custo."
                                             action={
-                                                <PrimaryButton
-                                                    variant="red"
-                                                    className="!text-white"
-                                                    onClick={() => {
-                                                        riskForm.resetFields();
-                                                        setRiskModal(true);
-                                                    }}
-                                                >
-                                                    Adicionar
-                                                </PrimaryButton>
+                                                canManage(permissions, 'risks') ? (
+                                                    <PrimaryButton
+                                                        variant="red"
+                                                        className="!text-white"
+                                                        onClick={() => {
+                                                            riskForm.resetFields();
+                                                            setRiskModal(true);
+                                                        }}
+                                                    >
+                                                        Adicionar
+                                                    </PrimaryButton>
+                                                ) : null
                                             }
                                             subtitle="Mapa de riscos, impactos e mitigação."
                                         >
@@ -1421,10 +1500,12 @@ export default function Show({ project: initialProject }) {
                                                             role="button"
                                                             tabIndex={0}
                                                             onClick={() => {
+                                                                if (!canManage(permissions, 'risks')) return;
                                                                 riskForm.setFieldsValue(risk);
                                                                 setRiskModal(true);
                                                             }}
                                                             onKeyDown={(event) => {
+                                                                if (!canManage(permissions, 'risks')) return;
                                                                 if (event.key === 'Enter' || event.key === ' ') {
                                                                     event.preventDefault();
                                                                     riskForm.setFieldsValue(risk);
@@ -1476,39 +1557,41 @@ export default function Show({ project: initialProject }) {
                                             title="Integrações"
                                             titleTooltip="Integrações externas e links úteis. Ex.: GitHub, Jira, Stripe, Sentry."
                                             action={
-                                                <div className="flex items-center gap-2">
-                                                    <Tooltip title="Gerar com IA">
-                                                        <button
-                                                            type="button"
-                                                            className={`ai-generate-button ${
-                                                                aiModuleLoading.integrations ? 'is-loading' : ''
-                                                            }`}
-                                                            onClick={() => handleAiGenerate('integrations')}
-                                                            disabled={aiModuleLoading.integrations}
-                                                            aria-label="Gerar integrações com IA"
-                                                            aria-busy={aiModuleLoading.integrations}
+                                                canManage(permissions, 'integrations') ? (
+                                                    <div className="flex items-center gap-2">
+                                                        <Tooltip title="Gerar com IA">
+                                                            <button
+                                                                type="button"
+                                                                className={`ai-generate-button ${
+                                                                    aiModuleLoading.integrations ? 'is-loading' : ''
+                                                                }`}
+                                                                onClick={() => handleAiGenerate('integrations')}
+                                                                disabled={aiModuleLoading.integrations}
+                                                                aria-label="Gerar integrações com IA"
+                                                                aria-busy={aiModuleLoading.integrations}
+                                                            >
+                                                                {aiModuleLoading.integrations ? (
+                                                                    <span className="ai-generate-spinner" />
+                                                                ) : (
+                                                                    <img src={aiIcon} alt="AI" />
+                                                                )}
+                                                                <span className="ai-generate-label">
+                                                                    Safio Creator AI
+                                                                </span>
+                                                            </button>
+                                                        </Tooltip>
+                                                        <PrimaryButton
+                                                            variant="red"
+                                                            className="!text-white"
+                                                            onClick={() => {
+                                                                integrationForm.resetFields();
+                                                                setIntegrationModal(true);
+                                                            }}
                                                         >
-                                                            {aiModuleLoading.integrations ? (
-                                                                <span className="ai-generate-spinner" />
-                                                            ) : (
-                                                                <img src={aiIcon} alt="AI" />
-                                                            )}
-                                                            <span className="ai-generate-label">
-                                                                Safio Creator AI
-                                                            </span>
-                                                        </button>
-                                                    </Tooltip>
-                                                    <PrimaryButton
-                                                        variant="red"
-                                                        className="!text-white"
-                                                        onClick={() => {
-                                                            integrationForm.resetFields();
-                                                            setIntegrationModal(true);
-                                                        }}
-                                                    >
-                                                        Adicionar
-                                                    </PrimaryButton>
-                                                </div>
+                                                            Adicionar
+                                                        </PrimaryButton>
+                                                    </div>
+                                                ) : null
                                             }
                                             subtitle="Links para repositórios, issues, PRs e docs."
                                         >
@@ -1527,10 +1610,12 @@ export default function Show({ project: initialProject }) {
                                                             role="button"
                                                             tabIndex={0}
                                                             onClick={() => {
+                                                                if (!canManage(permissions, 'integrations')) return;
                                                                 integrationForm.setFieldsValue(link);
                                                                 setIntegrationModal(true);
                                                             }}
                                                             onKeyDown={(event) => {
+                                                                if (!canManage(permissions, 'integrations')) return;
                                                                 if (event.key === 'Enter' || event.key === ' ') {
                                                                     event.preventDefault();
                                                                     integrationForm.setFieldsValue(link);
@@ -1578,16 +1663,18 @@ export default function Show({ project: initialProject }) {
                                             title="Governança"
                                             titleTooltip="Regras e processos. Ex.: PR review obrigatório, deploy com aprovação, acesso por papel."
                                             action={
-                                                <PrimaryButton
-                                                    variant="red"
-                                                    className="!text-white"
-                                                    onClick={() => {
-                                                        govForm.resetFields();
-                                                        setGovModal(true);
-                                                    }}
-                                                >
-                                                    Adicionar
-                                                </PrimaryButton>
+                                                canManage(permissions, 'governance') ? (
+                                                    <PrimaryButton
+                                                        variant="red"
+                                                        className="!text-white"
+                                                        onClick={() => {
+                                                            govForm.resetFields();
+                                                            setGovModal(true);
+                                                        }}
+                                                    >
+                                                        Adicionar
+                                                    </PrimaryButton>
+                                                ) : null
                                             }
                                             subtitle="Regras de aprovação, processo e acesso."
                                         >
@@ -1606,10 +1693,12 @@ export default function Show({ project: initialProject }) {
                                                             role="button"
                                                             tabIndex={0}
                                                             onClick={() => {
+                                                                if (!canManage(permissions, 'governance')) return;
                                                                 govForm.setFieldsValue(rule);
                                                                 setGovModal(true);
                                                             }}
                                                             onKeyDown={(event) => {
+                                                                if (!canManage(permissions, 'governance')) return;
                                                                 if (event.key === 'Enter' || event.key === ' ') {
                                                                     event.preventDefault();
                                                                     govForm.setFieldsValue(rule);
@@ -1662,39 +1751,41 @@ export default function Show({ project: initialProject }) {
                                             title="NFRs & Qualidade"
                                             titleTooltip="Metas não funcionais. Ex.: 99,9% uptime, p95 < 300ms, LGPD."
                                             action={
-                                                <div className="flex items-center gap-2">
-                                                    <Tooltip title="Gerar com IA">
-                                                        <button
-                                                            type="button"
-                                                            className={`ai-generate-button ${
-                                                                aiModuleLoading.nfrs ? 'is-loading' : ''
-                                                            }`}
-                                                            onClick={() => handleAiGenerate('nfrs')}
-                                                            disabled={aiModuleLoading.nfrs}
-                                                            aria-label="Gerar NFRs com IA"
-                                                            aria-busy={aiModuleLoading.nfrs}
+                                                canManage(permissions, 'nfrs') ? (
+                                                    <div className="flex items-center gap-2">
+                                                        <Tooltip title="Gerar com IA">
+                                                            <button
+                                                                type="button"
+                                                                className={`ai-generate-button ${
+                                                                    aiModuleLoading.nfrs ? 'is-loading' : ''
+                                                                }`}
+                                                                onClick={() => handleAiGenerate('nfrs')}
+                                                                disabled={aiModuleLoading.nfrs}
+                                                                aria-label="Gerar NFRs com IA"
+                                                                aria-busy={aiModuleLoading.nfrs}
+                                                            >
+                                                                {aiModuleLoading.nfrs ? (
+                                                                    <span className="ai-generate-spinner" />
+                                                                ) : (
+                                                                    <img src={aiIcon} alt="AI" />
+                                                                )}
+                                                                <span className="ai-generate-label">
+                                                                    Safio Creator AI
+                                                                </span>
+                                                            </button>
+                                                        </Tooltip>
+                                                        <PrimaryButton
+                                                            variant="red"
+                                                            className="!text-white"
+                                                            onClick={() => {
+                                                                nfrForm.resetFields();
+                                                                setNfrModal(true);
+                                                            }}
                                                         >
-                                                            {aiModuleLoading.nfrs ? (
-                                                                <span className="ai-generate-spinner" />
-                                                            ) : (
-                                                                <img src={aiIcon} alt="AI" />
-                                                            )}
-                                                            <span className="ai-generate-label">
-                                                                Safio Creator AI
-                                                            </span>
-                                                        </button>
-                                                    </Tooltip>
-                                                    <PrimaryButton
-                                                        variant="red"
-                                                        className="!text-white"
-                                                        onClick={() => {
-                                                            nfrForm.resetFields();
-                                                            setNfrModal(true);
-                                                        }}
-                                                    >
-                                                        Adicionar
-                                                    </PrimaryButton>
-                                                </div>
+                                                            Adicionar
+                                                        </PrimaryButton>
+                                                    </div>
+                                                ) : null
                                             }
                                             subtitle="Metas não-funcionais e qualidade."
                                         >
@@ -1713,10 +1804,12 @@ export default function Show({ project: initialProject }) {
                                                             role="button"
                                                             tabIndex={0}
                                                             onClick={() => {
+                                                                if (!canManage(permissions, 'nfrs')) return;
                                                                 nfrForm.setFieldsValue(nfr);
                                                                 setNfrModal(true);
                                                             }}
                                                             onKeyDown={(event) => {
+                                                                if (!canManage(permissions, 'nfrs')) return;
                                                                 if (event.key === 'Enter' || event.key === ' ') {
                                                                     event.preventDefault();
                                                                     nfrForm.setFieldsValue(nfr);
@@ -1766,16 +1859,18 @@ export default function Show({ project: initialProject }) {
                                             title="Decisões (ADRs)"
                                             titleTooltip="Decisões arquiteturais registradas. Ex.: escolher PostgreSQL, monorepo vs multirepo."
                                             action={
-                                                <PrimaryButton
-                                                    variant="red"
-                                                    className="!text-white"
-                                                    onClick={() => {
-                                                        decisionForm.resetFields();
-                                                        setDecisionModal(true);
-                                                    }}
-                                                >
-                                                    Adicionar
-                                                </PrimaryButton>
+                                                canManage(permissions, 'decisions') ? (
+                                                    <PrimaryButton
+                                                        variant="red"
+                                                        className="!text-white"
+                                                        onClick={() => {
+                                                            decisionForm.resetFields();
+                                                            setDecisionModal(true);
+                                                        }}
+                                                    >
+                                                        Adicionar
+                                                    </PrimaryButton>
+                                                ) : null
                                             }
                                             subtitle="Registro de decisões arquiteturais."
                                         >
@@ -1794,10 +1889,12 @@ export default function Show({ project: initialProject }) {
                                                             role="button"
                                                             tabIndex={0}
                                                             onClick={() => {
+                                                                if (!canManage(permissions, 'decisions')) return;
                                                                 decisionForm.setFieldsValue(adr);
                                                                 setDecisionModal(true);
                                                             }}
                                                             onKeyDown={(event) => {
+                                                                if (!canManage(permissions, 'decisions')) return;
                                                                 if (event.key === 'Enter' || event.key === ' ') {
                                                                     event.preventDefault();
                                                                     decisionForm.setFieldsValue(adr);
@@ -2575,42 +2672,116 @@ export default function Show({ project: initialProject }) {
                 onCancel={() => setProjectSettingsOpen(false)}
                 footer={null}
                 title="Configurações do projeto"
-                width={420}
+                width={640}
                 centered
                 destroyOnHidden
+                bodyStyle={{ maxHeight: '70vh', overflowY: 'auto' }}
             >
-                <div className="space-y-4">
-                    <div>
-                        <p className="text-sm text-gray-600">
-                            Atualize o avatar do projeto.
-                        </p>
-                        <div className="mt-3 flex items-center gap-3">
-                            <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-lg border border-gray-200 bg-[var(--color-surface-2)] text-sm font-semibold text-[var(--color-dark)]">
-                                {avatarUrl ? (
-                                    <img
-                                        src={avatarUrl}
-                                        alt={`Avatar do projeto ${project.name}`}
-                                        className="h-full w-full object-cover"
-                                    />
-                                ) : (
-                                    <span>{projectInitial}</span>
-                                )}
-                            </div>
-                            <label className="cursor-pointer rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-600 transition hover:border-[var(--color-secondary)] hover:text-[var(--color-secondary)]">
-                                {avatarProcessing ? 'Enviando...' : 'Trocar avatar'}
-                                <input
-                                    type="file"
-                                    accept="image/*"
-                                    disabled={avatarProcessing}
-                                    className="hidden"
-                                    onChange={(event) =>
-                                        handleProjectAvatar(event.target.files?.[0])
-                                    }
-                                />
-                            </label>
-                        </div>
-                    </div>
-                </div>
+                <Tabs
+                    defaultActiveKey="general"
+                    items={[
+                        {
+                            key: 'general',
+                            label: 'Geral',
+                            children: (
+                                <div className="space-y-4">
+                                    <div>
+                                        <p className="text-sm text-gray-600">Renomeie o projeto.</p>
+                                        <div className="mt-3 flex flex-col gap-2">
+                                            <Input
+                                                value={projectName}
+                                                onChange={(event) => setProjectName(event.target.value)}
+                                                maxLength={180}
+                                                placeholder="Nome do projeto"
+                                                disabled={nameSaving}
+                                            />
+                                            <div className="flex justify-end">
+                                                <PrimaryButton
+                                                    onClick={handleProjectNameSave}
+                                                    disabled={nameSaving || projectName.trim().length < 2}
+                                                    variant="secondary"
+                                                >
+                                                    {nameSaving ? 'Salvando...' : 'Salvar nome'}
+                                                </PrimaryButton>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <p className="text-sm text-gray-600">Atualize o avatar do projeto.</p>
+                                        <div className="mt-3 flex items-center gap-3">
+                                            <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-lg border border-gray-200 bg-[var(--color-surface-2)] text-sm font-semibold text-[var(--color-dark)]">
+                                                {avatarUrl ? (
+                                                    <img
+                                                        src={avatarUrl}
+                                                        alt={`Avatar do projeto ${project.name}`}
+                                                        className="h-full w-full object-cover"
+                                                    />
+                                                ) : (
+                                                    <span>{projectInitial}</span>
+                                                )}
+                                            </div>
+                                            <label className="cursor-pointer rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-600 transition hover:border-[var(--color-secondary)] hover:text-[var(--color-secondary)]">
+                                                {avatarProcessing ? 'Enviando...' : 'Trocar avatar'}
+                                                <input
+                                                    type="file"
+                                                    accept="image/*"
+                                                    disabled={avatarProcessing}
+                                                    className="hidden"
+                                                    onChange={(event) => handleProjectAvatar(event.target.files?.[0])}
+                                                />
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                            ),
+                        },
+                        ...(role === 'owner'
+                            ? [
+                                  {
+                                      key: 'members',
+                                      label: 'Membros',
+                                      children: (
+                                          <div className="space-y-3">
+                                              {members.length === 0 && (
+                                                  <div className="rounded-lg border border-dashed border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-500">
+                                                      Nenhum membro encontrado.
+                                                  </div>
+                                              )}
+                                              {members.map((member) => {
+                                                  const isSelf = member.user?.id === authUser?.id;
+                                                  return (
+                                                  <div
+                                                      key={member.id}
+                                                      className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-gray-200 bg-white px-3 py-2"
+                                                  >
+                                                      <div className="min-w-0">
+                                                          <div className="text-sm font-semibold text-gray-800">
+                                                              {member.user?.name || 'Usuário'}
+                                                          </div>
+                                                          <div className="text-xs text-gray-500">
+                                                              {member.user?.email || 'Sem e-mail'}
+                                                          </div>
+                                                      </div>
+                                                      <Select
+                                                          value={member.role}
+                                                          onChange={(value) => handleMemberRoleChange(member.id, value)}
+                                                          disabled={memberUpdating === member.id || isSelf}
+                                                          options={availableRoles.map((role) => ({
+                                                              label: role.charAt(0).toUpperCase() + role.slice(1),
+                                                              value: role,
+                                                          }))}
+                                                          className="min-w-[200px]"
+                                                      />
+                                                  </div>
+                                                  );
+                                              })}
+                                          </div>
+                                      ),
+                                  },
+                              ]
+                            : []),
+                    ]}
+                />
             </Modal>
 
             <Modal

@@ -12,12 +12,19 @@ class ProjectInvitationNotification extends Notification implements ShouldQueue
 {
     use Queueable;
 
+    private string $message;
+
     public function __construct(
         private Project $project,
         private User $inviter,
         private string $inviteId,
-        private string $message = 'Você foi convidado para colaborar em um projeto.',
+        ?string $message = null,
     ) {
+        $this->message = $message ?? sprintf(
+            'Você foi convidado para colaborar no projeto "%s" por %s.',
+            $this->project->name,
+            $this->inviter->name,
+        );
     }
 
     public function via($notifiable): array
@@ -33,6 +40,7 @@ class ProjectInvitationNotification extends Notification implements ShouldQueue
             'type' => 'project_invite',
             'invite_id' => $this->inviteId,
             'project_id' => $this->project->id,
+            'project_uuid' => $this->project->uuid,
             'project_name' => $this->project->name,
             'inviter' => [
                 'id' => $this->inviter->id,

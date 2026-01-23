@@ -2,7 +2,7 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, router } from '@inertiajs/react';
 import { Button, Card, Select, Tooltip } from 'antd';
 import { useEffect, useMemo, useState } from 'react';
-import { FiArrowDown, FiArrowUp, FiClock, FiSearch } from 'react-icons/fi';
+import { FiArrowDown, FiArrowUp, FiClock, FiSearch, FiUsers } from 'react-icons/fi';
 
 export default function Index({ projects = [] }) {
     const SEARCH_HISTORY_KEY = 'projects.search.history';
@@ -288,6 +288,8 @@ export default function Index({ projects = [] }) {
                                     const avatarUrl = project.avatar_url
                                         ? `${project.avatar_url}?v=${project.updated_at || project.id}`
                                         : null;
+                                    const isShared =
+                                        project.member_role && project.member_role !== 'owner';
                                     return (
                                     <div
                                         key={project.uuid || project.id}
@@ -316,8 +318,18 @@ export default function Index({ projects = [] }) {
                                                     <span>{initial}</span>
                                                 )}
                                             </div>
-                                            <div className="line-clamp-1 text-[var(--color-dark)]">
-                                                {project.name}
+                                            <div className="flex items-center gap-2 min-w-0">
+                                                <div className="line-clamp-1 text-[var(--color-dark)]">
+                                                    {project.name}
+                                                </div>
+                                                {isShared && (
+                                                    <span
+                                                        className="inline-flex h-7 w-7 p-1 border border-purple-700 items-center justify-center rounded-full bg-purple-100 text-purple-700"
+                                                        title="Projeto compartilhado"
+                                                    >
+                                                        <FiUsers className="h-3.5 w-3.5" />
+                                                    </span>
+                                                )}
                                             </div>
                                         </div>
                                         <span className="text-xs text-gray-500">

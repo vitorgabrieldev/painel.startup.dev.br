@@ -19,6 +19,8 @@ export default function AuthenticatedLayout({ header, children }) {
     const [unreadCount, setUnreadCount] = useState(0);
     const [notifOpen, setNotifOpen] = useState(false);
     const [notifLoading, setNotifLoading] = useState(false);
+    const [inviteProcessing, setInviteProcessing] = useState(null);
+    const [deletingId, setDeletingId] = useState(null);
     const notifRef = useRef(null);
 
     const loadNotifications = async () => {
@@ -92,10 +94,13 @@ export default function AuthenticatedLayout({ header, children }) {
 
     const deleteOne = async (id) => {
         try {
+            setDeletingId(id);
             await axios.delete(route('notifications.delete', id));
             setNotifications((prev) => prev.filter((item) => item.id !== id));
         } catch (error) {
             //
+        } finally {
+            setDeletingId((prev) => (prev === id ? null : prev));
         }
     };
 
@@ -104,17 +109,34 @@ export default function AuthenticatedLayout({ header, children }) {
             notification.data?.invite_id || notification.data?.inviteId || notification.data?.id;
         if (!inviteId) return;
         try {
+            setInviteProcessing({ id: notification.id, accept });
             await axios.post(
                 route(
                     accept ? 'projects.invites.accept' : 'projects.invites.reject',
                     inviteId,
                 ),
             );
-            await markRead(notification.id);
             setNotifications((prev) => prev.filter((item) => item.id !== notification.id));
-            await loadNotifications();
+            setUnreadCount((prev) => Math.max(prev - 1, 0));
+            if (accept) {
+                const actionUrl = notification.data?.action_url;
+                const projectUuid =
+                    notification.data?.project_uuid ||
+                    notification.data?.projectUuid ||
+                    notification.data?.project_id ||
+                    notification.data?.projectId;
+                if (actionUrl) {
+                    window.location.href = actionUrl;
+                } else if (projectUuid) {
+                    window.location.href = route('projects.show', projectUuid);
+                }
+            } else {
+                await loadNotifications();
+            }
         } catch (error) {
             //
+        } finally {
+            setInviteProcessing(null);
         }
     };
 
@@ -198,12 +220,23 @@ export default function AuthenticatedLayout({ header, children }) {
                                             )}
                                             {notifications.map((item) => {
                                                 const isInvite = item.type === 'project_invite' || item.data?.type === 'project_invite';
+                                                const isProcessingInvite =
+                                                    inviteProcessing?.id === item.id;
+                                                const isProcessingAccept =
+                                                    isProcessingInvite && inviteProcessing?.accept;
+                                                const isProcessingReject =
+                                                    isProcessingInvite && inviteProcessing && !inviteProcessing.accept;
+                                                const isDeleting = deletingId === item.id;
+                                                const inviteDisabled =
+                                                    isProcessingInvite ||
+                                                    notifLoading ||
+                                                    deletingId !== null;
                                                 return (
                                                     <div
                                                         key={item.id}
                                                         className={`notif-item ${
                                                             item.read_at ? 'is-read' : 'is-unread'
-                                                        }`}
+                                                        } ${isInvite ? 'is-invite' : ''}`}
                                                     >
                                                         <div className="notif-text">
                                                             <div className="notif-title">
@@ -224,20 +257,28 @@ export default function AuthenticatedLayout({ header, children }) {
                                                                     <button
                                                                         type="button"
                                                                         className="invite-accept"
+                                                                        disabled={inviteDisabled}
                                                                         onClick={() =>
                                                                             markInvite(item, true)
                                                                         }
                                                                     >
-                                                                        Aceitar
+                                                                        {isProcessingAccept ? (
+                                                                            <span className="btn-spinner" />
+                                                                        ) : null}
+                                                                        {isProcessingAccept ? 'Processando...' : 'Aceitar'}
                                                                     </button>
                                                                     <button
                                                                         type="button"
                                                                         className="invite-reject"
+                                                                        disabled={inviteDisabled}
                                                                         onClick={() =>
                                                                             markInvite(item, false)
                                                                         }
                                                                     >
-                                                                        Recusar
+                                                                        {isProcessingReject ? (
+                                                                            <span className="btn-spinner" />
+                                                                        ) : null}
+                                                                        {isProcessingReject ? 'Processando...' : 'Recusar'}
                                                                     </button>
                                                                 </div>
                                                             )}
@@ -255,9 +296,14 @@ export default function AuthenticatedLayout({ header, children }) {
                                                                 type="button"
                                                                 className="notif-delete"
                                                                 onClick={() => deleteOne(item.id)}
+                                                                disabled={isDeleting}
                                                                 title="Excluir"
                                                             >
-                                                                <FiTrash2 className="h-4 w-4" />
+                                                                {isDeleting ? (
+                                                                    <span className="btn-spinner" />
+                                                                ) : (
+                                                                    <FiTrash2 className="h-4 w-4" />
+                                                                )}
                                                             </button>
                                                         </div>
                                                     </div>

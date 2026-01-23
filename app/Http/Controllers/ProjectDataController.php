@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\InteractsWithProjectPermissions;
 use App\Models\ArchitecturePattern;
 use App\Models\DecisionRecord;
 use App\Models\GovernanceRule;
@@ -17,11 +18,15 @@ use Illuminate\Support\Str;
 
 class ProjectDataController extends Controller
 {
+    use InteractsWithProjectPermissions;
+
     public function updateProject(Project $project, Request $request)
     {
         $this->assertProjectAccess($project);
+        $this->assertProjectPermission($project, 'project', 'edit');
 
         $data = $request->validate([
+            'name' => ['sometimes', 'string', 'max:180'],
             'overview' => ['nullable', 'string'],
             'purpose' => ['nullable', 'string'],
             'scope' => ['nullable', 'string'],
@@ -36,6 +41,7 @@ class ProjectDataController extends Controller
     public function addTechStack(Project $project, Request $request)
     {
         $this->assertProjectAccess($project);
+        $this->assertProjectPermission($project, 'stack', 'create');
 
         $data = $request->validate([
             'category' => ['required', 'string', 'max:120'],
@@ -54,6 +60,7 @@ class ProjectDataController extends Controller
     public function updateTechStack(Project $project, TechStackItem $stackItem, Request $request)
     {
         $this->assertProjectAccess($project);
+        $this->assertProjectPermission($project, 'stack', 'edit');
 
         abort_unless($stackItem->project_id === $project->id, 404);
 
@@ -75,6 +82,7 @@ class ProjectDataController extends Controller
     public function addPattern(Project $project, Request $request)
     {
         $this->assertProjectAccess($project);
+        $this->assertProjectPermission($project, 'patterns', 'create');
 
         $data = $request->validate([
             'name' => ['required', 'string', 'max:180'],
@@ -91,6 +99,7 @@ class ProjectDataController extends Controller
     public function addRisk(Project $project, Request $request)
     {
         $this->assertProjectAccess($project);
+        $this->assertProjectPermission($project, 'risks', 'create');
 
         $data = $request->validate([
             'title' => ['required', 'string', 'max:180'],
@@ -107,6 +116,7 @@ class ProjectDataController extends Controller
     public function addIntegration(Project $project, Request $request)
     {
         $this->assertProjectAccess($project);
+        $this->assertProjectPermission($project, 'integrations', 'create');
 
         $data = $request->validate([
             'type' => ['required', 'string', 'max:80'],
@@ -121,6 +131,7 @@ class ProjectDataController extends Controller
     public function addGovernance(Project $project, Request $request)
     {
         $this->assertProjectAccess($project);
+        $this->assertProjectPermission($project, 'governance', 'create');
 
         $data = $request->validate([
             'name' => ['required', 'string', 'max:180'],
@@ -136,6 +147,7 @@ class ProjectDataController extends Controller
     public function addNfr(Project $project, Request $request)
     {
         $this->assertProjectAccess($project);
+        $this->assertProjectPermission($project, 'nfrs', 'create');
 
         $data = $request->validate([
             'category' => ['required', 'string', 'max:120'],
@@ -153,6 +165,7 @@ class ProjectDataController extends Controller
     public function addDecision(Project $project, Request $request)
     {
         $this->assertProjectAccess($project);
+        $this->assertProjectPermission($project, 'decisions', 'create');
 
         $data = $request->validate([
             'title' => ['required', 'string', 'max:180'],
@@ -168,6 +181,7 @@ class ProjectDataController extends Controller
     public function updateAvatar(Project $project, Request $request)
     {
         $this->assertProjectAccess($project);
+        $this->assertProjectPermission($project, 'project', 'edit');
 
         $validated = $request->validate([
             'avatar' => ['nullable', 'image', 'max:2048'],

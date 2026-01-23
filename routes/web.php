@@ -7,6 +7,7 @@ use App\Http\Controllers\ProjectChatController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\ProjectDataController;
 use App\Http\Controllers\ProjectInvitationController;
+use App\Http\Controllers\ProjectMemberController;
 use App\Http\Controllers\Auth\GithubController;
 use App\Http\Controllers\Auth\GoogleController;
 use App\Http\Controllers\NotificationController;
@@ -72,6 +73,7 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/projects/{project}/decisions', [ProjectDataController::class, 'addDecision'])->name('projects.decisions.store');
     Route::post('/projects/{project}/avatar', [ProjectDataController::class, 'updateAvatar'])->name('projects.avatar.update');
     Route::post('/projects/{project}/ai/generate', [ProjectDataController::class, 'generateAiData'])->name('projects.ai.generate');
+    Route::patch('/projects/{project}/members/{member}', [ProjectMemberController::class, 'update'])->name('projects.members.update');
 
     Route::post('/projects/{project}/invites', [ProjectInvitationController::class, 'store'])->name('projects.invites.store');
     Route::post('/invites/{invitation}/accept', [ProjectInvitationController::class, 'accept'])->name('projects.invites.accept');

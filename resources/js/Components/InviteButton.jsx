@@ -3,7 +3,7 @@ import { FiSend } from 'react-icons/fi';
 import { Modal, Input, message } from 'antd';
 import axios from 'axios';
 
-export default function InviteButton({ projectId }) {
+export default function InviteButton({ projectId, disabled = false }) {
     const [open, setOpen] = useState(false);
     const [email, setEmail] = useState('');
     const [loading, setLoading] = useState(false);
@@ -30,7 +30,8 @@ export default function InviteButton({ projectId }) {
             <button
                 type="button"
                 className="inline-flex items-center gap-2 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-700 transition hover:border-[var(--color-secondary)] hover:text-[var(--color-secondary)]"
-                onClick={() => setOpen(true)}
+                onClick={() => !disabled && setOpen(true)}
+                disabled={disabled}
             >
                 <FiSend className="h-4 w-4" />
                 Convidar

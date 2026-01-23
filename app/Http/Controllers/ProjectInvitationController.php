@@ -2,9 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\InteractsWithProjectPermissions;
 use App\Models\Project;
 use App\Models\ProjectInvitation;
 use App\Models\ProjectMember;
+use App\Models\Notification;
 use App\Models\User;
 use App\Notifications\ProjectInvitationNotification;
 use Illuminate\Http\JsonResponse;
@@ -14,9 +16,12 @@ use Illuminate\Support\Str;
 
 class ProjectInvitationController extends Controller
 {
+    use InteractsWithProjectPermissions;
+
     public function store(Project $project, Request $request): JsonResponse
     {
         $this->authorizeOwner($project);
+        $this->assertProjectPermission($project, 'invites', 'create');
 
         $data = $request->validate([
             'email' => ['required', 'email'],
@@ -33,7 +38,16 @@ class ProjectInvitationController extends Controller
             ->where('status', 'pending')
             ->first();
         if ($existing) {
-            return response()->json(['error' => 'invite_already_sent'], 422);
+            Notification::where('notifiable_id', $invitee->id)
+                ->where('notifiable_type', get_class($invitee))
+                ->where('data->type', 'project_invite')
+                ->where(function ($query) use ($existing) {
+                    $query->where('data->invite_id', (string) $existing->id)
+                        ->orWhere('data->invite_id', $existing->id);
+                })
+                ->delete();
+
+            $existing->delete();
         }
 
         $invitation = ProjectInvitation::create([
@@ -65,13 +79,22 @@ class ProjectInvitationController extends Controller
                 'project_id' => $invitation->project_id,
                 'user_id' => $invitation->invited_user_id,
             ],
-            ['role' => 'member'],
+            ['role' => 'user'],
         );
 
         $invitation->update([
             'status' => 'accepted',
             'responded_at' => now(),
         ]);
+
+        Notification::where('notifiable_id', $request->user()->id)
+            ->where('notifiable_type', get_class($request->user()))
+            ->where('data->type', 'project_invite')
+            ->where(function ($query) use ($invitation) {
+                $query->where('data->invite_id', (string) $invitation->id)
+                    ->orWhere('data->invite_id', $invitation->id);
+            })
+            ->delete();
 
         return response()->json(['ok' => true]);
     }
@@ -88,6 +111,15 @@ class ProjectInvitationController extends Controller
             'status' => 'rejected',
             'responded_at' => now(),
         ]);
+
+        Notification::where('notifiable_id', $request->user()->id)
+            ->where('notifiable_type', get_class($request->user()))
+            ->where('data->type', 'project_invite')
+            ->where(function ($query) use ($invitation) {
+                $query->where('data->invite_id', (string) $invitation->id)
+                    ->orWhere('data->invite_id', $invitation->id);
+            })
+            ->delete();
 
         return response()->json(['ok' => true]);
     }
