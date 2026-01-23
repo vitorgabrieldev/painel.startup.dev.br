@@ -6,6 +6,7 @@ use App\Http\Controllers\Concerns\InteractsWithProjectPermissions;
 use App\Models\Project;
 use App\Models\ProjectMember;
 use App\Support\ProjectPermissions;
+use App\Notifications\ProjectRoleChangedNotification;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -26,6 +27,11 @@ class ProjectMemberController extends Controller
         ]);
 
         $member->update(['role' => $data['role']]);
+
+        $member->loadMissing('user');
+        if ($member->user) {
+            $member->user->notify(new ProjectRoleChangedNotification($project, $request->user(), $member->role));
+        }
 
         return response()->json([
             'member' => $member->load('user'),

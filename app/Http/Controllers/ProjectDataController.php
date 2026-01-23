@@ -11,8 +11,10 @@ use App\Models\NonFunctionalRequirement;
 use App\Models\Project;
 use App\Models\Risk;
 use App\Models\TechStackItem;
+use App\Notifications\ProjectChangedNotification;
 use App\Services\MistralClient;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Notification as NotificationFacade;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
@@ -35,6 +37,8 @@ class ProjectDataController extends Controller
 
         $project->update($data);
 
+        $this->notifyProjectChange($project, 'project', 'update', ['fields' => array_keys($data)]);
+
         return $this->freshProject($project);
     }
 
@@ -53,6 +57,8 @@ class ProjectDataController extends Controller
             'constraints' => ['nullable', 'string'],
         ]);
         $project->techStackItems()->create($data);
+
+        $this->notifyProjectChange($project, 'stack', 'create', ['name' => $data['name']]);
 
         return $this->freshProject($project);
     }
@@ -76,6 +82,8 @@ class ProjectDataController extends Controller
 
         $stackItem->update($data);
 
+        $this->notifyProjectChange($project, 'stack', 'update', ['name' => $data['name']]);
+
         return $this->freshProject($project);
     }
 
@@ -92,6 +100,8 @@ class ProjectDataController extends Controller
             'status' => ['required', 'string', 'in:adopted,evaluating,deprecated'],
         ]);
         $project->architecturePatterns()->create($data);
+
+        $this->notifyProjectChange($project, 'patterns', 'create', ['name' => $data['name']]);
 
         return $this->freshProject($project);
     }
@@ -110,6 +120,8 @@ class ProjectDataController extends Controller
         ]);
         $project->risks()->create($data);
 
+        $this->notifyProjectChange($project, 'risks', 'create', ['title' => $data['title']]);
+
         return $this->freshProject($project);
     }
 
@@ -124,6 +136,8 @@ class ProjectDataController extends Controller
             'url' => ['required', 'url'],
         ]);
         $project->integrationLinks()->create($data);
+
+        $this->notifyProjectChange($project, 'integrations', 'create', ['label' => $data['label']]);
 
         return $this->freshProject($project);
     }
@@ -140,6 +154,8 @@ class ProjectDataController extends Controller
             'status' => ['required', 'string', 'in:active,inactive'],
         ]);
         $project->governanceRules()->create($data);
+
+        $this->notifyProjectChange($project, 'governance', 'create', ['name' => $data['name']]);
 
         return $this->freshProject($project);
     }
@@ -159,6 +175,8 @@ class ProjectDataController extends Controller
         ]);
         $project->nonFunctionalRequirements()->create($data);
 
+        $this->notifyProjectChange($project, 'nfrs', 'create', ['category' => $data['category']]);
+
         return $this->freshProject($project);
     }
 
@@ -174,6 +192,8 @@ class ProjectDataController extends Controller
             'decision' => ['nullable', 'string'],
         ]);
         $project->decisionRecords()->create($data);
+
+        $this->notifyProjectChange($project, 'decisions', 'create', ['title' => $data['title']]);
 
         return $this->freshProject($project);
     }
@@ -202,6 +222,8 @@ class ProjectDataController extends Controller
         }
 
         $project->save();
+
+        $this->notifyProjectChange($project, 'project', 'update_avatar');
 
         return $this->freshProject($project);
     }
@@ -275,6 +297,20 @@ class ProjectDataController extends Controller
             'integrationLinks',
             'governanceRules',
         ]);
+    }
+
+    private function notifyProjectChange(Project $project, string $module, string $action, array $meta = []): void
+    {
+        $project->loadMissing('members.user');
+        $recipients = $project->members->map->user->filter();
+        if ($recipients->isEmpty()) {
+            return;
+        }
+
+        NotificationFacade::send(
+            $recipients,
+            new ProjectChangedNotification($project, auth()->user(), $module, $action, $meta),
+        );
     }
 
     private function buildAiContext(Project $project): string

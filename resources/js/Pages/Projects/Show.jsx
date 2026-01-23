@@ -88,6 +88,15 @@ const canManage = (permissions, module) =>
     canDo(permissions, module, 'create') ||
     canDo(permissions, module, 'edit') ||
     canDo(permissions, module, 'delete');
+
+const handleRequestError = (error, messageApi, fallback = 'Não foi possível completar a ação.') => {
+    if (error?.response?.status === 401) {
+        messageApi.error('Não autorizado.');
+        return true;
+    }
+    messageApi.error(fallback);
+    return false;
+};
 const InfoLabel = ({ text, tooltip }) => (
     <div className="flex items-center gap-2">
         <span>{text}</span>
@@ -461,7 +470,7 @@ export default function Show({ project: initialProject, role: initialRole = 'use
                 messageApi.info('Nada novo para sugerir.');
             }
         } catch (error) {
-            messageApi.error('Não foi possível gerar agora.');
+            handleRequestError(error, messageApi, 'Não foi possível gerar agora.');
         } finally {
             setAiModuleLoading((prev) => ({ ...prev, [module]: false }));
         }
@@ -527,7 +536,7 @@ export default function Show({ project: initialProject, role: initialRole = 'use
                 messageApi.success('Item adicionado.');
             }
         } catch (error) {
-            messageApi.error('Não foi possível adicionar.');
+            handleRequestError(error, messageApi, 'Não foi possível adicionar.');
         } finally {
             setAiSuggestionProcessing(null);
         }
