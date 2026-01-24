@@ -15,83 +15,83 @@ import {
 } from 'react-icons/fi';
 
 const TYPED_PHRASES = [
-    'Governança técnica com visão executiva e rastreabilidade.',
-    'Menos retrabalho, mais previsibilidade para o roadmap.',
-    'Decisões registradas para proteger margem e prazo.',
+    'Documente seu projeto com apoio de IA.',
+    'Receba sugestões automáticas de stack e padrões.',
+    'Evolua seu código com dicas inteligentes.',
 ];
 
 const EXEC_SUMMARY = [
     {
         icon: FiBarChart2,
-        text: 'Matriz de risco com impacto financeiro estimado.',
+        text: 'Centralize a documentação do seu projeto com sugestões de IA.',
     },
     {
         icon: FiCheckCircle,
-        text: 'Decisões aprovadas com histórico e responsáveis.',
+        text: 'Receba dicas automáticas de melhorias e padrões de arquitetura.',
     },
     {
         icon: FiLayers,
-        text: 'Stack registrada com custo, maturidade e dependência.',
+        text: 'Compartilhe decisões, aprendizados e stacks recomendados.',
     },
 ];
 
 const RESULTS = [
     {
         icon: FiTrendingUp,
-        title: 'Previsibilidade',
-        text: 'Mostre impacto e dependências antes que virem custo.',
+        title: 'Organização inteligente',
+        text: 'Tenha tudo do seu projeto em um só lugar, com insights automáticos.',
     },
     {
         icon: FiTarget,
-        title: 'Governança',
-        text: 'Fluxo de aprovação e accountability em cada decisão.',
+        title: 'Sugestões de stack',
+        text: 'Receba recomendações de tecnologias e padrões para seu contexto.',
     },
     {
         icon: FiUsers,
-        title: 'Clientes confiantes',
-        text: 'Documentação executiva para vender evolução técnica.',
+        title: 'Evolução contínua',
+        text: 'Registre melhorias e implemente dicas da IA para crescer mais rápido.',
     },
     {
         icon: FiActivity,
-        title: 'Velocidade',
-        text: 'Time alinhado para decidir sem travar entregas.',
+        title: 'Agilidade',
+        text: 'Documente rápido, sem burocracia, com apoio da inteligência artificial.',
     },
 ];
 
 const STEPS = [
     {
         icon: FiCompass,
-        title: '1. Estruture o contexto',
-        text: 'Templates guiados para decisão, impacto e risco.',
+        title: '1. Documente com IA',
+        text: 'Registre decisões e ideias com sugestões automáticas.',
     },
     {
         icon: FiCheckCircle,
-        title: '2. Colete alinhamento',
-        text: 'Stakeholders aprovam e acompanham status.',
+        title: '2. Receba recomendações',
+        text: 'A IA sugere stacks, padrões e melhorias para seu projeto.',
     },
     {
         icon: FiTrendingUp,
-        title: '3. Venda com dados',
-        text: 'Mostre impacto financeiro e previsibilidade.',
+        title: '3. Compartilhe e evolua',
+        text: 'Implemente dicas, compartilhe e acompanhe a evolução.',
     },
 ];
 
 const SECURITY = [
     {
         icon: FiShield,
-        text: 'Controle de acesso por projeto e responsabilidade.',
+        text: 'Seus dados protegidos e privados.',
     },
     {
         icon: FiLock,
-        text: 'Histórico completo de alterações e aprovadores.',
+        text: 'Histórico de alterações sempre disponível.',
     },
     {
         icon: FiFileText,
-        text: 'Documentos e anexos centralizados por decisão.',
+        text: 'Anexe arquivos e mantenha tudo organizado.',
     },
     {
         icon: FiCheckCircle,
-        text: 'Relatórios exportáveis para clientes e auditorias.',
+        text: 'Exporte informações quando quiser.',
     },
 ];
 
@@ -147,13 +147,13 @@ export default function Landing({ canLogin, canRegister }) {
                                 Safio Studio
                             </p>
                             <p className="text-xs text-slate-400">
-                                Decisões técnicas com impacto financeiro.
+                                Documentação inteligente para devs solos, freelancers e startups.
                             </p>
                         </div>
                     </Link>
                     <div className="hidden items-center gap-6 text-sm text-slate-300 md:flex">
                         <a href="#resultados" className="transition hover:text-white">
-                            Resultados
+                            Benefícios
                         </a>
                         <a href="#como-funciona" className="transition hover:text-white">
                             Como funciona
@@ -189,17 +189,11 @@ export default function Landing({ canLogin, canRegister }) {
             <main className="mx-auto flex max-w-6xl flex-col gap-14 px-6 py-14">
                 <section className="grid gap-10 lg:grid-cols-[1.1fr,0.9fr] lg:items-center">
                     <div className="fade-up fade-up-delay-1 space-y-6">
-                        <div className="font-display inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-white">
-                            Plataforma de governança técnica
-                        </div>
                         <h1 className="font-display text-4xl font-semibold text-white sm:text-5xl">
-                            Safio Studio transforma decisões técnicas em vantagem
-                            comercial.
+                            Safio Studio: IA para documentar, sugerir e evoluir seu projeto.
                         </h1>
                         <p className="text-base text-slate-300">
-                            Centralize contexto, riscos e impacto financeiro de cada
-                            escolha. Mostre para diretorias e clientes que a
-                            engenharia tem previsibilidade, disciplina e retorno.
+                            Organize ideias, registre decisões, anexe arquivos e receba sugestões automáticas de stack, padrões e melhorias. Tudo em um só lugar, feito para devs solos, freelancers, startups e pequenos times.
                         </p>
                         <div
                             className="font-display min-h-[28px] text-sm text-rose-200"
@@ -230,10 +224,11 @@ export default function Landing({ canLogin, canRegister }) {
                         </div>
                         <div className="flex flex-wrap gap-3 text-xs text-slate-400">
                             {[
-                                'Times de produto',
-                                'Consultorias',
-                                'Scale-ups',
-                                'Operações enterprise',
+                                'Devs solos',
+                                'Freelancers',
+                                'Startups',
+                                'Pequenos times',
+                                'Com IA embarcada',
                             ].map((item) => (
                                 <span
                                     key={item}
