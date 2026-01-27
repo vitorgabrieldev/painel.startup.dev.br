@@ -49,12 +49,14 @@ jobs:
       - name: Notify Risklog
         env:
           RISKLOG_API_KEY: ${{ secrets.RISKLOG_API_KEY }}
+          RISKLOG_PROJECT_SLUG: ${{ secrets.RISKLOG_PROJECT_SLUG }}
+          RISKLOG_ENVIRONMENT: ${{ secrets.RISKLOG_ENVIRONMENT }}
         run: |
           commit_time="$(git show -s --format=%cI "$GITHUB_SHA")"  # ISO 8601 do commit
           payload=$(cat <<EOF
           {
-            "project_slug": "seu-projeto",
-            "environment": "production",
+            "project_slug": "${RISKLOG_PROJECT_SLUG}",
+            "environment": "${RISKLOG_ENVIRONMENT}",
             "pipeline_id": "github:actions:${{ github.run_id }}",
             "pipeline_url": "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}",
             "status": "succeeded",
