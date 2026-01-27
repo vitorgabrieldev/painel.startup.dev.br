@@ -56,7 +56,7 @@ jobs:
           payload=$(cat <<EOF
           {
             "project_slug": "${RISKLOG_PROJECT_SLUG}",
-            "environment": "${RISKLOG_ENVIRONMENT}",
+            "environment": "production",
             "pipeline_id": "github:actions:${{ github.run_id }}",
             "pipeline_url": "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}",
             "status": "succeeded",
