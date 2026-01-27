@@ -2,8 +2,7 @@ name: Deploy (rsync)
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
   workflow_dispatch:
 
 jobs:
@@ -15,8 +14,7 @@ jobs:
       SSH_PROD_PASSWORD: ${{ secrets.SSH_PROD_PASSWORD }}
       SSH_PROD_FOLDER: ${{ secrets.SSH_PROD_FOLDER }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Install rsync + sshpass
         run: |
@@ -34,16 +32,43 @@ jobs:
       - name: Build & clear caches on server
         run: |
           SSH_OPTS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
-          sshpass -p "$SSH_PROD_PASSWORD" ssh $SSH_OPTS \
-            "$SSH_PROD_USER@$SSH_PROD_HOST" \
-            "cd $SSH_PROD_FOLDER \
+          sshpass -p "$SSH_PROD_PASSWORD" ssh $SSH_OPTS "$SSH_PROD_USER@$SSH_PROD_HOST" "
+            cd $SSH_PROD_FOLDER \
             && composer install --no-dev --optimize-autoloader \
             && if command -v yarn >/dev/null 2>&1 && [ -f yarn.lock ]; then yarn install --frozen-lockfile && yarn build; \
                elif [ -f package-lock.json ]; then npm ci && npm run build; \
                else npm install && npm run build; fi \
             && php artisan migrate --force \
             && php artisan storage:link || true \
+            && mkdir -p storage/framework/{cache,sessions,views} bootstrap/cache \
+            && chmod -R ug+rwX storage bootstrap/cache \
+            && find storage bootstrap/cache -type d -exec chmod 775 {} + \
             && php artisan config:clear \
             && php artisan route:clear \
             && php artisan config:cache \
-            && php artisan route:cache"
+            && php artisan route:cache
+          "
+
+      - name: Notify Risklog
+        env:
+          RISKLOG_API_KEY: ${{ secrets.RISKLOG_API_KEY }}
+        run: |
+          curl -X POST "https://app.startup.dev.br/api/ingest/deploy" \
+            -H "X-Api-Key: $RISKLOG_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "project_slug": "seu-projeto",
+              "environment": "production",
+              "pipeline_id": "github:actions:${{ github.run_id }}",
+              "pipeline_url": "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}",
+              "status": "succeeded",
+              "commit_sha": "${{ github.sha }}",
+              "commit_message": "${{ github.event.head_commit.message }}",
+              "author_name": "${{ github.actor }}",
+              "author_email": "${{ github.event.head_commit.author.email }}",
+              "triggered_by": "github-actions",
+              "branch": "${{ github.ref_name }}",
+              "repository": "${{ github.repository }}",
+              "started_at": "${{ github.event.head_commit.timestamp }}",
+              "finished_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            }'
