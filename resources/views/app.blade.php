@@ -17,6 +17,12 @@
         @inertiaHead
     </head>
     <body class="font-sans antialiased">
+        <a
+            href="#conteudo-principal"
+            class="sr-only focus:not-sr-only fixed left-4 top-4 z-50 inline-flex items-center rounded-lg bg-white px-4 py-2 text-sm font-semibold text-gray-900 shadow focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[var(--color-secondary)]"
+        >
+            Pular para o conteúdo principal
+        </a>
         @inertia
     </body>
 </html>

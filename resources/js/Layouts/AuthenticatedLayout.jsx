@@ -481,7 +481,9 @@ export default function AuthenticatedLayout({ header, children }) {
                 </header>
             )}
 
-            <main>{children}</main>
+            <main id="conteudo-principal" role="main">
+                {children}
+            </main>
         </div>
     );
 }
