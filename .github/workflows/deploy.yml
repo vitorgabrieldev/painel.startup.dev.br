@@ -40,9 +40,6 @@ jobs:
                else npm install && npm run build; fi \
             && php artisan migrate --force \
             && php artisan storage:link || true \
-            && mkdir -p storage/framework/{cache,sessions,views} bootstrap/cache \
-            && chmod -R ug+rwX storage bootstrap/cache \
-            && find storage bootstrap/cache -type d -exec chmod 775 {} + \
             && php artisan config:clear \
             && php artisan route:clear \
             && php artisan config:cache \
